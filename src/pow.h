@@ -8,6 +8,7 @@
 
 #include <consensus/params.h>
 
+//#include <functional>
 #include <stdint.h>
 
 class CBlockHeader;
@@ -19,6 +20,7 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
 
 /** Check whether a block hash satisfies the proof-of-work requirement specified by nBits */
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params&);
+//bool CheckProofOfWork(uint256 hash, unsigned int nBits, uint32_t nNonce, const Consensus::Params&);
 
 /**
  * Return false if the proof-of-work requirement specified by new_nbits at a

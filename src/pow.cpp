@@ -134,9 +134,24 @@ bool PermittedDifficultyTransition(const Consensus::Params& params, int64_t heig
     return true;
 }
 
+/*
+// Bypasses the actual proof of work check during fuzz testing with a dummy validation checking whether nNonce is odd or even.
+bool CheckProofOfWork(uint256 hash, unsigned int nBits, uint32_t nNonce, const Consensus::Params& params)
+{
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    return nNonce & 1;
+#else
+    return CheckProofOfWorkImpl(hash, nBits, params);
+#endif
+}
+*/
+
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
 {
-    bool fNegative;
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+	return (hash.data()[31] & 0x80) == 0;
+#else
+	bool fNegative;
     bool fOverflow;
     arith_uint256 bnTarget;
 
@@ -151,4 +166,5 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params&
         return false;
 
     return true;
+#endif
 }
