@@ -122,8 +122,25 @@ bool PermittedDifficultyTransition(const Consensus::Params& params, int64_t heig
     return true;
 }
 
+//std::function<bool(uint256, unsigned int, const Consensus::Params&)> g_check_pow_mock = nullptr;
+
+bool FuzzCheckPoW(uint256 hash, unsigned int nBits, uint32_t nNonce, const Consensus::Params& params)
+{
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    return nNonce & 1;
+#else
+    return CheckProofOfWork(hash, nBits, params);
+#endif
+}
+
+
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
 {
+
+    //if (g_check_pow_mock) {
+    //    return g_check_pow_mock(hash, nBits, params);
+    //}
+
     bool fNegative;
     bool fOverflow;
     arith_uint256 bnTarget;
