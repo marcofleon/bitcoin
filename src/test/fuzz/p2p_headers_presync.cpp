@@ -13,6 +13,11 @@
 #include <uint256.h>
 #include <validation.h>
 
+#include <iostream>
+#include <chain.h>
+#include <arith_uint256.h>
+#include <string>
+
 namespace {
 constexpr uint32_t FUZZ_MAX_HEADERS_RESULTS{16};
 
@@ -85,23 +90,53 @@ void HeadersSyncSetup::SendMessage(FuzzedDataProvider& fuzzed_data_provider, CSe
     m_node.peerman->SendMessages(&connection);
 }
 
-CBlockHeader ConsumeHeader(FuzzedDataProvider& fuzzed_data_provider, const uint256& prev_hash, uint32_t prev_nbits)
+arith_uint256 ConsumeArithUInt256InRange(FuzzedDataProvider& fuzzed_data_provider, const arith_uint256& min, const arith_uint256& max)
+{
+    assert(min < max);
+    arith_uint256 range = max - min;
+    arith_uint256 value = ConsumeArithUInt256(fuzzed_data_provider);
+
+    assert((range + 1) != 0);
+    arith_uint256 s = value / (range + 1);
+    arith_uint256 rest = value - (s * (range + 1));
+
+    return min + rest;
+}
+
+CBlockHeader ConsumeHeader(FuzzedDataProvider& fuzzed_data_provider, const uint256& prev_hash, uint32_t prev_nbits, arith_uint256 min_work)
 {
     CBlockHeader header;
     header.nNonce = 0;
-    // Either use the previous difficulty or let the fuzzer choose
-    header.nBits = fuzzed_data_provider.ConsumeBool() ?
-                       prev_nbits :
-                       fuzzed_data_provider.ConsumeIntegralInRange<uint32_t>(0x17058EBE, 0x1D00FFFF);
+
+    arith_uint256 lower_bound = (min_work / 1600) - 1;
+    //arith_uint256 lower_bound = UintToArith256(uint256{"00000000000000000000000000000000000000000015e6a4ea16b9a966a70715"});
+    arith_uint256 upper_bound = UintToArith256(uint256{"ffff000000000000000000000000000000000000000000000000000000000000"});
+
+
+    if (fuzzed_data_provider.ConsumeBool()) {
+        header.nBits = prev_nbits;
+    } else {
+        arith_uint256 target = ConsumeArithUInt256InRange(fuzzed_data_provider, lower_bound, upper_bound);
+                //0x15E6A4EA16B9A966A70715, 0xFFFF0000000000000000000000000000000000000000000000000000);
+        header.nBits = target.GetCompact();
+    }
+
+
+    //header.nBits = fuzzed_data_provider.ConsumeBool() ?
+                       //prev_nbits :
+                       //fuzzed_data_provider.ConsumeIntegralInRange<uint32_t>(0x17058EBE, 0x1D00FFFF);
+
     header.nTime = ConsumeTime(fuzzed_data_provider);
     header.hashPrevBlock = prev_hash;
     header.nVersion = fuzzed_data_provider.ConsumeIntegral<int32_t>();
+
+
     return header;
 }
 
-CBlock ConsumeBlock(FuzzedDataProvider& fuzzed_data_provider, const uint256& prev_hash, uint32_t prev_nbits)
+CBlock ConsumeBlock(FuzzedDataProvider& fuzzed_data_provider, const uint256& prev_hash, uint32_t prev_nbits, arith_uint256 min_work)
 {
-    auto header = ConsumeHeader(fuzzed_data_provider, prev_hash, prev_nbits);
+    auto header = ConsumeHeader(fuzzed_data_provider, prev_hash, prev_nbits, min_work);
     // In order to reach the headers acceptance logic, the block is
     // constructed in a way that will pass the mutation checks.
     CBlock block{header};
@@ -149,13 +184,15 @@ FUZZ_TARGET(p2p_headers_presync, .init = initialize)
     // The chain is just a single block, so this is equal to 1
     size_t original_index_size{WITH_LOCK(cs_main, return chainman.m_blockman.m_block_index.size())};
     arith_uint256 total_work{WITH_LOCK(cs_main, return chainman.m_best_header->nChainWork)};
+    arith_uint256 min_work{chainman.MinimumChainWork()};
+    //auto total_work{WITH_LOCK(cs_main, return chainman.m_best_header->nChainWork)};
 
     std::vector<CBlockHeader> all_headers;
 
     LIMITED_WHILE(fuzzed_data_provider.ConsumeBool(), 100)
     {
         auto finalized_block = [&]() {
-            CBlock block = ConsumeBlock(fuzzed_data_provider, base.GetHash(), base.nBits);
+            CBlock block = ConsumeBlock(fuzzed_data_provider, base.GetHash(), base.nBits, min_work);
             FinalizeHeader(block, chainman);
             return block;
         };
@@ -168,7 +205,7 @@ FUZZ_TARGET(p2p_headers_presync, .init = initialize)
                 std::vector<CBlock> headers;
                 headers.resize(FUZZ_MAX_HEADERS_RESULTS);
                 for (CBlock& header : headers) {
-                    header = ConsumeHeader(fuzzed_data_provider, base.GetHash(), base.nBits);
+                    header = ConsumeHeader(fuzzed_data_provider, base.GetHash(), base.nBits, min_work);
                     FinalizeHeader(header, chainman);
                     base = header;
                 }
@@ -205,7 +242,7 @@ FUZZ_TARGET(p2p_headers_presync, .init = initialize)
     total_work += CalculateClaimedHeadersWork(all_headers);
 
     // This test should never create a chain with more work than MinimumChainWork.
-    assert(total_work < chainman.MinimumChainWork());
+    assert(total_work < min_work);
 
     // The headers/blocks sent in this test should never be stored, as the chains don't have the work required
     // to meet the anti-DoS work threshold. So, if at any point the block index grew in size, then there's a bug
