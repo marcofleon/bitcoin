@@ -120,6 +120,7 @@ add_executable(fuzz
   tx_out.cpp
   tx_pool.cpp
   txorphan.cpp
+  txreconciliation.cpp
   txrequest.cpp
   utxo_snapshot.cpp
   utxo_total_supply.cpp
