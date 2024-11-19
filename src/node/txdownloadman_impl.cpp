@@ -47,7 +47,7 @@ std::vector<GenTxid> TxDownloadManager::GetRequestsToSend(NodeId nodeid, std::ch
 {
     return m_impl->GetRequestsToSend(nodeid, current_time);
 }
-void TxDownloadManager::ReceivedNotFound(NodeId nodeid, const std::vector<uint256>& txhashes)
+void TxDownloadManager::ReceivedNotFound(NodeId nodeid, const std::vector<GenTxidVariant>& txhashes)
 {
     m_impl->ReceivedNotFound(nodeid, txhashes);
 }
@@ -281,17 +281,17 @@ std::vector<GenTxid> TxDownloadManagerImpl::GetRequestsToSend(NodeId nodeid, std
             LogDebug(BCLog::NET, "Requesting %s %s peer=%d\n", gtxid.IsWtxid() ? "wtx" : "tx",
                 gtxid.GetHash().ToString(), nodeid);
             requests.emplace_back(gtxid);
-            m_txrequest.RequestedTx(nodeid, gtxid.GetHash(), current_time + GETDATA_TX_INTERVAL);
+            m_txrequest.RequestedTx(nodeid, gtxid.ToVariant(), current_time + GETDATA_TX_INTERVAL);
         } else {
             // We have already seen this transaction, no need to download. This is just a belt-and-suspenders, as
             // this should already be called whenever a transaction becomes AlreadyHaveTx().
-            m_txrequest.ForgetTxHash(gtxid.GetHash());
+            m_txrequest.ForgetTxHash(gtxid.ToVariant());
         }
     }
     return requests;
 }
 
-void TxDownloadManagerImpl::ReceivedNotFound(NodeId nodeid, const std::vector<uint256>& txhashes)
+void TxDownloadManagerImpl::ReceivedNotFound(NodeId nodeid, const std::vector<GenTxidVariant>& txhashes)
 {
     for (const auto& txhash : txhashes) {
         // If we receive a NOTFOUND message for a tx we requested, mark the announcement for it as
@@ -515,8 +515,8 @@ void TxDownloadManagerImpl::MempoolRejectedPackage(const Package& package)
 
 std::pair<bool, std::optional<PackageToValidate>> TxDownloadManagerImpl::ReceivedTx(NodeId nodeid, const CTransactionRef& ptx)
 {
-    const uint256& txid = ptx->GetHash();
-    const uint256& wtxid = ptx->GetWitnessHash();
+    const Txid& txid = ptx->GetHash();
+    const Wtxid& wtxid = ptx->GetWitnessHash();
 
     // Mark that we have received a response
     m_txrequest.ReceivedResponse(nodeid, txid);
@@ -552,7 +552,7 @@ std::pair<bool, std::optional<PackageToValidate>> TxDownloadManagerImpl::Receive
         // peer simply for relaying a tx that our m_lazy_recent_rejects has caught,
         // regardless of false positives.
         return {false, std::nullopt};
-    } else if (RecentRejectsReconsiderableFilter().contains(wtxid)) {
+    } else if (RecentRejectsReconsiderableFilter().contains(wtxid.ToUint256())) {
         // When a transaction is already in m_lazy_recent_rejects_reconsiderable, we shouldn't submit
         // it by itself again. However, look for a matching child in the orphanage, as it is
         // possible that they succeed as a package.

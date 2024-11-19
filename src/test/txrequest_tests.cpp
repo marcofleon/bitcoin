@@ -100,7 +100,7 @@ public:
     }
 
     /** Schedule a ForgetTxHash call at the Scheduler's current time. */
-    void ForgetTxHash(const uint256& txhash)
+    void ForgetTxHash(const GenTxidVariant& txhash)
     {
         auto& runner = m_runner;
         runner.actions.emplace_back(m_now, [=,&runner]() {
@@ -309,7 +309,7 @@ void TxRequestTest::BuildSingleTest(Scenario& scenario, int config)
     if (config & 4) { // The peer will go offline
         scenario.DisconnectedPeer(peer);
     } else { // The transaction is no longer needed
-        scenario.ForgetTxHash(gtxid.GetHash());
+        scenario.ForgetTxHash(gtxid.ToVariant());
     }
     scenario.Check(peer, {}, 0, 0, 0, "s11");
 }
