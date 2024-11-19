@@ -423,6 +423,10 @@ struct CMutableTransaction
 typedef std::shared_ptr<const CTransaction> CTransactionRef;
 template <typename Tx> static inline CTransactionRef MakeTransactionRef(Tx&& txIn) { return std::make_shared<const CTransaction>(std::forward<Tx>(txIn)); }
 
+
+using GenTxidVariant = std::variant<Txid, Wtxid>;
+
+
 /** A generic txid reference (txid or wtxid). */
 class GenTxid
 {
@@ -437,6 +441,53 @@ public:
     const uint256& GetHash() const LIFETIMEBOUND { return m_hash; }
     friend bool operator==(const GenTxid& a, const GenTxid& b) { return a.m_is_wtxid == b.m_is_wtxid && a.m_hash == b.m_hash; }
     friend bool operator<(const GenTxid& a, const GenTxid& b) { return std::tie(a.m_is_wtxid, a.m_hash) < std::tie(b.m_is_wtxid, b.m_hash); }
+
+    static GenTxid FromVariant(const GenTxidVariant& var) {
+        return std::visit([](const auto& id) -> GenTxid {
+            if constexpr (std::is_same_v<std::decay_t<decltype(id)>, ::Wtxid>) {
+                return Wtxid(id.ToUint256());
+            } else {
+                return Txid(id.ToUint256());
+            }
+        }, var);
+    }
+
+    GenTxidVariant ToVariant() const {
+        return m_is_wtxid ?
+            GenTxidVariant(Wtxid::FromUint256(m_hash)) :
+            GenTxidVariant(Txid::FromUint256(m_hash));
+    }
+
 };
+
+/*
+class GenTxid {
+private:
+    std::variant<Txid, Wtxid> m_hash;
+public:
+    explicit GenTxid(Txid txid) : m_hash(std::move(txid)) {}
+    explicit GenTxid(Wtxid wtxid) : m_hash(std::move(wtxid)) {}
+
+    bool IsWtxid() const { return std::holds_alternative<Wtxid>(m_hash); }
+
+    const Txid& GetTxid() const LIFETIMEBOUND {
+        assert(!IsWtxid());
+        return std::get<Txid>(m_hash);
+    }
+
+    const Wtxid& GetWtxid() const LIFETIMEBOUND {
+        assert(IsWtxid());
+        return std::get<Wtxid>(m_hash);
+    }
+
+    friend bool operator==(const GenTxid& a, const GenTxid& b) {
+        return a.m_hash == b.m_hash;
+    }
+
+    friend bool operator<(const GenTxid& a, const GenTxid& b) {
+        return a.m_hash < b.m_hash;
+    }
+};
+*/
 
 #endif // BITCOIN_PRIMITIVES_TRANSACTION_H
