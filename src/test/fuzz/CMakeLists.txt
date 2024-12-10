@@ -123,6 +123,7 @@ add_executable(fuzz
   tx_out.cpp
   tx_pool.cpp
   txorphan.cpp
+  txreconciliation.cpp
   txrequest.cpp
   # Visual Studio 2022 version 17.12 introduced a bug
   # that causes an internal compiler error.
