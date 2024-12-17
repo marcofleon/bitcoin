@@ -24,6 +24,7 @@
 #include <util/check.h>
 #include <util/fs.h>
 #include <util/result.h>
+#include <util/time.h>
 #include <validation.h>
 
 #include <cstdint>
@@ -46,6 +47,7 @@ void initialize_chain()
     const auto params{CreateChainParams(ArgsManager{}, ChainType::REGTEST)};
     static const auto chain{CreateBlockChain(2 * COINBASE_MATURITY, *params)};
     g_chain = &chain;
+
     static const auto setup{
         MakeNoLogFileContext<TestingSetup>(ChainType::REGTEST,
                                            TestOpts{
@@ -72,6 +74,7 @@ void utxo_snapshot_fuzz(FuzzBufferType buffer)
 {
     SeedRandomStateForTest(SeedRand::ZEROS);
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
+    SetMockTime(ConsumeTime(fuzzed_data_provider, /*min=*/1296688602)); // regtest genesis block timestamp
     auto& setup{*g_setup};
     bool dirty_chainman{false}; // Re-use the global chainman, but reset it when it is dirty
     auto& chainman{*setup.m_node.chainman};

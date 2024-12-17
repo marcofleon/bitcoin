@@ -15,6 +15,7 @@
 #include <test/util/mining.h>
 #include <test/util/setup_common.h>
 #include <util/chaintype.h>
+#include <util/time.h>
 #include <validation.h>
 
 FUZZ_TARGET(utxo_total_supply)
@@ -27,12 +28,13 @@ FUZZ_TARGET(utxo_total_supply)
         },
     };
     SeedRandomStateForTest(SeedRand::ZEROS); // Can not be done before test_setup
+    FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
+    SetMockTime(ConsumeTime(fuzzed_data_provider, /*min=*/1296688602)); // regtest genesis block timestamp
     // Create chainstate
     test_setup.LoadVerifyActivateChainstate();
     auto& node{test_setup.m_node};
     auto& chainman{*Assert(test_setup.m_node.chainman)};
-    FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
-
+        
     const auto ActiveHeight = [&]() {
         LOCK(chainman.GetMutex());
         return chainman.ActiveHeight();

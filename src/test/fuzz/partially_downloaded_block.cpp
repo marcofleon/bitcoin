@@ -46,6 +46,7 @@ FUZZ_TARGET(partially_downloaded_block, .init = initialize_pdb)
 {
     SeedRandomStateForTest(SeedRand::ZEROS);
     FuzzedDataProvider fuzzed_data_provider{buffer.data(), buffer.size()};
+    SetMockTime(ConsumeTime(fuzzed_data_provider));
 
     auto block{ConsumeDeserializable<CBlock>(fuzzed_data_provider, TX_WITH_WITNESS)};
     if (!block || block->vtx.size() == 0 ||

@@ -6,6 +6,7 @@
 #ifndef BITCOIN_UTIL_TIME_H
 #define BITCOIN_UTIL_TIME_H
 
+#include <atomic>
 #include <chrono> // IWYU pragma: export
 #include <cstdint>
 #include <optional>
@@ -13,6 +14,8 @@
 #include <string_view>
 
 using namespace std::chrono_literals;
+
+extern std::atomic<bool> g_used_system_time;
 
 /** Mockable clock in the context of tests, otherwise the system clock */
 struct NodeClock : public std::chrono::system_clock {

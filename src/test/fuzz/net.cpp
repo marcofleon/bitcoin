@@ -79,6 +79,7 @@ FUZZ_TARGET(net, .init = initialize_net)
 FUZZ_TARGET(local_address, .init = initialize_net)
 {
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
+    SetMockTime(ConsumeTime(fuzzed_data_provider));
     CService service{ConsumeService(fuzzed_data_provider)};
     CNode node{ConsumeNode(fuzzed_data_provider)};
     {

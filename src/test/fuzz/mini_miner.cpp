@@ -36,6 +36,7 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
 {
     SeedRandomStateForTest(SeedRand::ZEROS);
     FuzzedDataProvider fuzzed_data_provider{buffer.data(), buffer.size()};
+    SetMockTime(ConsumeTime(fuzzed_data_provider));
     bilingual_str error;
     CTxMemPool pool{CTxMemPool::Options{}, error};
     Assert(error.empty());
@@ -115,6 +116,7 @@ FUZZ_TARGET(mini_miner_selection, .init = initialize_miner)
 {
     SeedRandomStateForTest(SeedRand::ZEROS);
     FuzzedDataProvider fuzzed_data_provider{buffer.data(), buffer.size()};
+    SetMockTime(ConsumeTime(fuzzed_data_provider));
     bilingual_str error;
     CTxMemPool pool{CTxMemPool::Options{}, error};
     Assert(error.empty());
