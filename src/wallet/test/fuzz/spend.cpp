@@ -32,6 +32,7 @@ FUZZ_TARGET(wallet_create_transaction, .init = initialize_setup)
 {
     SeedRandomStateForTest(SeedRand::ZEROS);
     FuzzedDataProvider fuzzed_data_provider{buffer.data(), buffer.size()};
+    SetMockTime(ConsumeTime(fuzzed_data_provider));
     const auto& node = g_setup->m_node;
     Chainstate& chainstate{node.chainman->ActiveChainstate()};
     ArgsManager& args = *node.args;
