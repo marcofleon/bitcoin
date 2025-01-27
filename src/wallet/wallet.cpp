@@ -676,9 +676,9 @@ void CWallet::SetMinVersion(enum WalletFeature nVersion, WalletBatch* batch_in)
     }
 }
 
-std::set<uint256> CWallet::GetConflicts(const uint256& txid) const
+std::set<Txid> CWallet::GetConflicts(const Txid& txid) const
 {
-    std::set<uint256> result;
+    std::set<Txid> result;
     AssertLockHeld(cs_wallet);
 
     const auto it = mapWallet.find(txid);
@@ -2069,12 +2069,12 @@ bool CWallet::SubmitTxMemoryPoolAndRelay(CWalletTx& wtx, std::string& err_string
     return ret;
 }
 
-std::set<uint256> CWallet::GetTxConflicts(const CWalletTx& wtx) const
+std::set<Txid> CWallet::GetTxConflicts(const CWalletTx& wtx) const
 {
     AssertLockHeld(cs_wallet);
 
-    const uint256 myHash{wtx.GetHash()};
-    std::set<uint256> result{GetConflicts(myHash)};
+    const Txid myHash{wtx.GetHash()};
+    std::set<Txid> result{GetConflicts(myHash)};
     result.erase(myHash);
     return result;
 }

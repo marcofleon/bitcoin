@@ -873,7 +873,7 @@ static RPCHelpMan getblocktemplate()
     int i = 0;
     for (const auto& it : block.vtx) {
         const CTransaction& tx = *it;
-        uint256 txHash = tx.GetHash();
+        Txid txHash = tx.GetHash();
         setTxIndex[txHash] = i++;
 
         if (tx.IsCoinBase())

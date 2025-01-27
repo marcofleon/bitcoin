@@ -34,11 +34,11 @@ static void WalletTxToJSON(const CWallet& wallet, const CWalletTx& wtx, UniValue
     } else {
         entry.pushKV("trusted", CachedTxIsTrusted(wallet, wtx));
     }
-    uint256 hash = wtx.GetHash();
+    Txid hash = wtx.GetHash();
     entry.pushKV("txid", hash.GetHex());
     entry.pushKV("wtxid", wtx.GetWitnessHash().GetHex());
     UniValue conflicts(UniValue::VARR);
-    for (const uint256& conflict : wallet.GetTxConflicts(wtx))
+    for (const Txid& conflict : wallet.GetTxConflicts(wtx))
         conflicts.push_back(conflict.GetHex());
     entry.pushKV("walletconflicts", std::move(conflicts));
     UniValue mempool_conflicts(UniValue::VARR);

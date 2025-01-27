@@ -1545,7 +1545,7 @@ void PeerManagerImpl::InitializeNode(const CNode& node, ServiceFlags our_service
 
 void PeerManagerImpl::ReattemptInitialBroadcast(CScheduler& scheduler)
 {
-    std::set<uint256> unbroadcast_txids = m_mempool.GetUnbroadcastTxs();
+    std::set<Txid> unbroadcast_txids = m_mempool.GetUnbroadcastTxs();
 
     for (const auto& txid : unbroadcast_txids) {
         CTransactionRef tx = m_mempool.get(txid);
