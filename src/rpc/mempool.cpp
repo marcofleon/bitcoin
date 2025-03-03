@@ -479,7 +479,7 @@ static RPCHelpMan getmempoolancestors()
         UniValue o(UniValue::VOBJ);
         for (CTxMemPool::txiter ancestorIt : ancestors) {
             const CTxMemPoolEntry &e = *ancestorIt;
-            const uint256& _hash = e.GetTx().GetHash();
+            const Txid& _hash = e.GetTx().GetHash();
             UniValue info(UniValue::VOBJ);
             entryToJSON(mempool, info, e);
             o.pushKV(_hash.ToString(), std::move(info));

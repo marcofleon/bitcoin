@@ -760,7 +760,7 @@ RPCHelpMan gettransaction()
 
     LOCK(pwallet->cs_wallet);
 
-    uint256 hash(ParseHashV(request.params[0], "txid"));
+    Txid hash = Txid::FromUint256((ParseHashV(request.params[0], "txid")));
 
     isminefilter filter = ISMINE_SPENDABLE;
 
@@ -833,7 +833,7 @@ RPCHelpMan abandontransaction()
 
     LOCK(pwallet->cs_wallet);
 
-    uint256 hash(ParseHashV(request.params[0], "txid"));
+    Txid hash = Txid::FromUint256((ParseHashV(request.params[0], "txid")));
 
     if (!pwallet->mapWallet.count(hash)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");

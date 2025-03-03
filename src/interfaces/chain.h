@@ -207,10 +207,10 @@ public:
     virtual RBFTransactionState isRBFOptIn(const CTransaction& tx) = 0;
 
     //! Check if transaction is in mempool.
-    virtual bool isInMempool(const uint256& txid) = 0;
+    virtual bool isInMempool(const Txid& txid) = 0;
 
     //! Check if transaction has descendants in mempool.
-    virtual bool hasDescendantsInMempool(const uint256& txid) = 0;
+    virtual bool hasDescendantsInMempool(const Txid& txid) = 0;
 
     //! Transaction is added to memory pool, if the transaction fee is below the
     //! amount specified by max_tx_fee, and broadcast to all peers if relay is set to true.
