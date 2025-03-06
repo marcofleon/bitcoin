@@ -22,6 +22,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
@@ -422,6 +423,8 @@ struct CMutableTransaction
 
 typedef std::shared_ptr<const CTransaction> CTransactionRef;
 template <typename Tx> static inline CTransactionRef MakeTransactionRef(Tx&& txIn) { return std::make_shared<const CTransaction>(std::forward<Tx>(txIn)); }
+
+using GenTxidVariant = std::variant<Txid, Wtxid>;
 
 /** A generic txid reference (txid or wtxid). */
 class GenTxid
