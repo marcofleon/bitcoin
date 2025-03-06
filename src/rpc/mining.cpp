@@ -351,7 +351,7 @@ static RPCHelpMan generateblock()
         const auto& str{raw_txs_or_txids[i].get_str()};
 
         CMutableTransaction mtx;
-        if (auto hash{uint256::FromHex(str)}) {
+        if (auto hash{Txid::FromHex(str)}) {
             const auto tx{mempool.get(*hash)};
             if (!tx) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("Transaction %s not in mempool.", str));
@@ -515,7 +515,7 @@ static RPCHelpMan prioritisetransaction()
 {
     LOCK(cs_main);
 
-    uint256 hash(ParseHashV(request.params[0], "txid"));
+    Txid hash = Txid::FromUint256((ParseHashV(request.params[0], "txid")));
     const auto dummy{self.MaybeArg<double>("dummy")};
     CAmount nAmount = request.params[2].getInt<int64_t>();
 
