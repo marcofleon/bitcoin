@@ -11,8 +11,23 @@
 #include <span.h>
 #include <uint256.h>
 
+#include <concepts>
 #include <cstdint>
 #include <cstring>
+
+class SaltedUint256Hasher
+{
+private:
+    /** Salt */
+    const uint64_t k0, k1;
+
+public:
+    SaltedUint256Hasher();
+
+    size_t operator()(const uint256& hash) const {
+        return SipHashUint256(k0, k1, hash);
+    }
+};
 
 class SaltedTxidHasher
 {
@@ -23,21 +38,11 @@ private:
 public:
     SaltedTxidHasher();
 
-    size_t operator()(const uint256& txid) const {
-        return SipHashUint256(k0, k1, txid);
-    }
-
-
-    /*
-    size_t operator()(const Txid& txid) const {
+    template <typename T>
+        requires std::same_as<T, Txid> || std::same_as<T, Wtxid>
+    size_t operator()(const T& txid) const {
         return SipHashUint256(k0, k1, txid.ToUint256());
     }
-
-    size_t operator()(const Wtxid& wtxid) const {
-        return SipHashUint256(k0, k1, wtxid.ToUint256());
-    }
-    */
-
 };
 
 class SaltedOutpointHasher

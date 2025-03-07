@@ -394,8 +394,8 @@ RPCHelpMan removeprunedfunds()
 
     LOCK(pwallet->cs_wallet);
 
-    uint256 hash(ParseHashV(request.params[0], "txid"));
-    std::vector<uint256> vHash;
+    Txid hash = Txid::FromUint256((ParseHashV(request.params[0], "txid")));
+    std::vector<Txid> vHash;
     vHash.push_back(hash);
     if (auto res = pwallet->RemoveTxs(vHash); !res) {
         throw JSONRPCError(RPC_WALLET_ERROR, util::ErrorString(res).original);
