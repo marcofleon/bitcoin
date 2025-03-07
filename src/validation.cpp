@@ -1716,7 +1716,7 @@ PackageMempoolAcceptResult MemPoolAccept::AcceptPackage(const Package& package, 
         // The package must be 1 child with all of its unconfirmed parents. The package is expected to
         // be sorted, so the last transaction is the child.
         const auto& child = package.back();
-        std::unordered_set<uint256, SaltedTxidHasher> unconfirmed_parent_txids;
+        std::unordered_set<Txid, SaltedTxidHasher> unconfirmed_parent_txids;
         std::transform(package.cbegin(), package.cend() - 1,
                        std::inserter(unconfirmed_parent_txids, unconfirmed_parent_txids.end()),
                        [](const auto& tx) { return tx->GetHash(); });

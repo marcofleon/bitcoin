@@ -7,6 +7,7 @@
 #include <policy/rbf.h>
 #include <rpc/util.h>
 #include <rpc/blockchain.h>
+#include <util/transaction_identifier.h>
 #include <util/vector.h>
 #include <wallet/receive.h>
 #include <wallet/rpc/util.h>
@@ -100,7 +101,7 @@ static UniValue ListReceived(const CWallet& wallet, const UniValue& params, cons
 
     // Tally
     std::map<CTxDestination, tallyitem> mapTally;
-    for (const std::pair<const uint256, CWalletTx>& pairWtx : wallet.mapWallet) {
+    for (const std::pair<const Txid, CWalletTx>& pairWtx : wallet.mapWallet) {
         const CWalletTx& wtx = pairWtx.second;
 
         int nDepth = wallet.GetTxDepthInMainChain(wtx);
@@ -650,7 +651,7 @@ RPCHelpMan listsinceblock()
 
     UniValue transactions(UniValue::VARR);
 
-    for (const std::pair<const uint256, CWalletTx>& pairWtx : wallet.mapWallet) {
+    for (const std::pair<const Txid, CWalletTx>& pairWtx : wallet.mapWallet) {
         const CWalletTx& tx = pairWtx.second;
 
         if (depth == -1 || abs(wallet.GetTxDepthInMainChain(tx)) < depth) {
@@ -760,7 +761,7 @@ RPCHelpMan gettransaction()
 
     LOCK(pwallet->cs_wallet);
 
-    uint256 hash(ParseHashV(request.params[0], "txid"));
+    Txid hash = Txid::FromUint256((ParseHashV(request.params[0], "txid")));
 
     isminefilter filter = ISMINE_SPENDABLE;
 
@@ -833,7 +834,7 @@ RPCHelpMan abandontransaction()
 
     LOCK(pwallet->cs_wallet);
 
-    uint256 hash(ParseHashV(request.params[0], "txid"));
+    Txid hash = Txid::FromUint256((ParseHashV(request.params[0], "txid")));
 
     if (!pwallet->mapWallet.count(hash)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
