@@ -1072,7 +1072,7 @@ static RPCHelpMan submitpackage()
             UniValue rpc_result{UniValue::VOBJ};
             rpc_result.pushKV("package_msg", package_msg);
             UniValue tx_result_map{UniValue::VOBJ};
-            std::set<uint256> replaced_txids;
+            std::set<Txid> replaced_txids;
             for (const auto& tx : txns) {
                 UniValue result_inner{UniValue::VOBJ};
                 result_inner.pushKV("txid", tx->GetHash().GetHex());
@@ -1116,7 +1116,7 @@ static RPCHelpMan submitpackage()
             }
             rpc_result.pushKV("tx-results", std::move(tx_result_map));
             UniValue replaced_list(UniValue::VARR);
-            for (const uint256& hash : replaced_txids) replaced_list.push_back(hash.ToString());
+            for (const Txid& hash : replaced_txids) replaced_list.push_back(hash.ToString());
             rpc_result.pushKV("replaced-transactions", std::move(replaced_list));
             return rpc_result;
         },

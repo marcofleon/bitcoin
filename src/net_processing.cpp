@@ -506,7 +506,7 @@ public:
     std::vector<TxOrphanage::OrphanTxBase> GetOrphanTransactions() override EXCLUSIVE_LOCKS_REQUIRED(!m_tx_download_mutex);
     PeerManagerInfo GetInfo() const override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void SendPings() override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
-    void RelayTransaction(const uint256& txid, const uint256& wtxid) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
+    void RelayTransaction(const Txid& txid, const Wtxid& wtxid) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void SetBestBlock(int height, std::chrono::seconds time) override
     {
         m_best_height = height;
@@ -2118,7 +2118,7 @@ void PeerManagerImpl::SendPings()
     for(auto& it : m_peer_map) it.second->m_ping_queued = true;
 }
 
-void PeerManagerImpl::RelayTransaction(const uint256& txid, const uint256& wtxid)
+void PeerManagerImpl::RelayTransaction(const Txid& txid, const Wtxid& wtxid)
 {
     LOCK(m_peer_mutex);
     for(auto& it : m_peer_map) {
@@ -2134,7 +2134,7 @@ void PeerManagerImpl::RelayTransaction(const uint256& txid, const uint256& wtxid
         // in the announcement.
         if (tx_relay->m_next_inv_send_time == 0s) continue;
 
-        const uint256& hash{peer.m_wtxid_relay ? wtxid : txid};
+        const uint256& hash{peer.m_wtxid_relay ? wtxid.ToUint256() : txid.ToUint256()};
         if (!tx_relay->m_tx_inventory_known_filter.contains(hash)) {
             tx_relay->m_tx_inventory_to_send.insert(hash);
         }
@@ -2986,7 +2986,7 @@ std::optional<node::PackageToValidate> PeerManagerImpl::ProcessInvalidTx(NodeId 
         AddToCompactExtraTransactions(ptx);
     }
     for (const Txid& parent_txid : unique_parents) {
-        if (peer) AddKnownTx(*peer, parent_txid);
+        if (peer) AddKnownTx(*peer, parent_txid.ToUint256());
     }
 
     MaybePunishNodeForTx(nodeid, state);
@@ -4224,10 +4224,10 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
         vRecv >> TX_WITH_WITNESS(ptx);
         const CTransaction& tx = *ptx;
 
-        const uint256& txid = ptx->GetHash();
-        const uint256& wtxid = ptx->GetWitnessHash();
+        const Txid& txid = ptx->GetHash();
+        const Wtxid& wtxid = ptx->GetWitnessHash();
 
-        const uint256& hash = peer->m_wtxid_relay ? wtxid : txid;
+        const uint256& hash = peer->m_wtxid_relay ? wtxid.ToUint256() : txid.ToUint256();
         AddKnownTx(*peer, hash);
 
         LOCK2(cs_main, m_tx_download_mutex);
