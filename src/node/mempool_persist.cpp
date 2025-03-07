@@ -150,7 +150,7 @@ bool DumpMempool(const CTxMemPool& pool, const fs::path& dump_path, FopenFn mock
 {
     auto start = SteadyClock::now();
 
-    std::map<uint256, CAmount> mapDeltas;
+    std::map<Txid, CAmount> mapDeltas;
     std::vector<TxMempoolInfo> vinfo;
     std::set<Txid> unbroadcast_txids;
 
