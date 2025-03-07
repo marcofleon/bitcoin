@@ -429,17 +429,77 @@ using GenTxidVariant = std::variant<Txid, Wtxid>;
 /** A generic txid reference (txid or wtxid). */
 class GenTxid
 {
+private:
     bool m_is_wtxid;
+    // Old implementation
+    /*
     uint256 m_hash;
     GenTxid(bool is_wtxid, const uint256& hash) : m_is_wtxid(is_wtxid), m_hash(hash) {}
+    */
+    
+    // New implementation
+    union {
+        ::Txid m_txid;
+        ::Wtxid m_wtxid;
+    };
+
+    // Private constructors for the factory methods
+    explicit GenTxid(const ::Txid& txid) : m_is_wtxid(false), m_txid(txid) {}
+    explicit GenTxid(const ::Wtxid& wtxid) : m_is_wtxid(true), m_wtxid(wtxid) {}
 
 public:
+    // Old factory methods (commented out)
+    /*
     static GenTxid Txid(const uint256& hash) { return GenTxid{false, hash}; }
     static GenTxid Wtxid(const uint256& hash) { return GenTxid{true, hash}; }
+    */
+    
+    // New factory methods
+    static GenTxid Txid(const ::Txid& txid) { return GenTxid(txid); }
+    static GenTxid Wtxid(const ::Wtxid& wtxid) { return GenTxid(wtxid); }
+    
+    // For backward compatibility
+    static GenTxid Txid(const uint256& hash) { return GenTxid(::Txid::FromUint256(hash)); }
+    static GenTxid Wtxid(const uint256& hash) { return GenTxid(::Wtxid::FromUint256(hash)); }
+    
     bool IsWtxid() const { return m_is_wtxid; }
+    
+    // Old accessor (commented out)
+    /*
     const uint256& GetHash() const LIFETIMEBOUND { return m_hash; }
+    */
+    
+    // Get the hash as the appropriate type
+    const ::Txid& GetTxid() const LIFETIMEBOUND { 
+        assert(!m_is_wtxid);
+        return m_txid;
+    }
+    
+    const ::Wtxid& GetWtxid() const LIFETIMEBOUND {
+        assert(m_is_wtxid);
+        return m_wtxid;
+    }
+    
+    // For backward compatibility
+    const uint256& GetHash() const LIFETIMEBOUND {
+        return m_is_wtxid ? m_wtxid.ToUint256() : m_txid.ToUint256();
+    }
+    
+    // Old comparison operators (commented out)
+    /*
     friend bool operator==(const GenTxid& a, const GenTxid& b) { return a.m_is_wtxid == b.m_is_wtxid && a.m_hash == b.m_hash; }
     friend bool operator<(const GenTxid& a, const GenTxid& b) { return std::tie(a.m_is_wtxid, a.m_hash) < std::tie(b.m_is_wtxid, b.m_hash); }
+    */
+    
+    friend bool operator==(const GenTxid& a, const GenTxid& b) {
+        if (a.m_is_wtxid != b.m_is_wtxid) return false;
+        return a.m_is_wtxid ? (a.m_wtxid == b.m_wtxid) : (a.m_txid == b.m_txid);
+    }
+    
+    friend bool operator<(const GenTxid& a, const GenTxid& b) {
+        if (a.m_is_wtxid != b.m_is_wtxid) return a.m_is_wtxid < b.m_is_wtxid;
+        return a.m_is_wtxid ? (a.m_wtxid < b.m_wtxid) : (a.m_txid < b.m_txid);
+    }
 };
 
 #endif // BITCOIN_PRIMITIVES_TRANSACTION_H

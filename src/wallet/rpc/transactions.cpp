@@ -35,11 +35,11 @@ static void WalletTxToJSON(const CWallet& wallet, const CWalletTx& wtx, UniValue
     } else {
         entry.pushKV("trusted", CachedTxIsTrusted(wallet, wtx));
     }
-    uint256 hash = wtx.GetHash();
+    Txid hash = wtx.GetHash();
     entry.pushKV("txid", hash.GetHex());
     entry.pushKV("wtxid", wtx.GetWitnessHash().GetHex());
     UniValue conflicts(UniValue::VARR);
-    for (const uint256& conflict : wallet.GetTxConflicts(wtx))
+    for (const Txid& conflict : wallet.GetTxConflicts(wtx))
         conflicts.push_back(conflict.GetHex());
     entry.pushKV("walletconflicts", std::move(conflicts));
     UniValue mempool_conflicts(UniValue::VARR);
@@ -68,7 +68,7 @@ struct tallyitem
 {
     CAmount nAmount{0};
     int nConf{std::numeric_limits<int>::max()};
-    std::vector<uint256> txids;
+    std::vector<Txid> txids;
     bool fIsWatchonly{false};
     tallyitem() = default;
 };
@@ -170,7 +170,7 @@ static UniValue ListReceived(const CWallet& wallet, const UniValue& params, cons
             obj.pushKV("label", label);
             UniValue transactions(UniValue::VARR);
             if (it != mapTally.end()) {
-                for (const uint256& _item : (*it).second.txids) {
+                for (const Txid& _item : (*it).second.txids) {
                     transactions.push_back(_item.GetHex());
                 }
             }
