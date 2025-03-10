@@ -53,6 +53,6 @@ bool PreCheckEphemeralTx(const CTransaction& tx, CFeeRate dust_relay_rate, CAmou
  *  Sets out_child_state and out_child_txid on failure.
  *  @returns true if all dust is properly spent.
  */
-bool CheckEphemeralSpends(const Package& package, CFeeRate dust_relay_rate, const CTxMemPool& tx_pool, TxValidationState& out_child_state, Txid& out_child_txid);
+bool CheckEphemeralSpends(const Package& package, CFeeRate dust_relay_rate, const CTxMemPool& tx_pool, TxValidationState& out_child_state, Wtxid& out_child_wtxid);
 
 #endif // BITCOIN_POLICY_EPHEMERAL_POLICY_H
