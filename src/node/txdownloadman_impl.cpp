@@ -104,8 +104,8 @@ void TxDownloadManagerImpl::BlockConnected(const std::shared_ptr<const CBlock>& 
         if (ptx->HasWitness()) {
             RecentConfirmedTransactionsFilter().insert(ptx->GetWitnessHash().ToUint256());
         }
-        m_txrequest.ForgetTxHash(ptx->GetHash());
-        m_txrequest.ForgetTxHash(ptx->GetWitnessHash());
+        m_txrequest.ForgetTxHash(ptx->GetHash().ToUint256());
+        m_txrequest.ForgetTxHash(ptx->GetWitnessHash().ToUint256());
     }
 }
 
@@ -330,8 +330,8 @@ void TxDownloadManagerImpl::MempoolAcceptedTx(const CTransactionRef& tx)
 {
     // As this version of the transaction was acceptable, we can forget about any requests for it.
     // No-op if the tx is not in txrequest.
-    m_txrequest.ForgetTxHash(tx->GetHash());
-    m_txrequest.ForgetTxHash(tx->GetWitnessHash());
+    m_txrequest.ForgetTxHash(tx->GetHash().ToUint256());
+    m_txrequest.ForgetTxHash(tx->GetWitnessHash().ToUint256());
 
     m_orphanage.AddChildrenToWorkSet(*tx, m_opts.m_rng);
     // If it came from the orphanage, remove it. No-op if the tx is not in txorphanage.
@@ -378,11 +378,11 @@ node::RejectedTxTodo TxDownloadManagerImpl::MempoolRejectedTx(const CTransaction
             // We can tolerate having up to 1 parent in m_lazy_recent_rejects_reconsiderable since we
             // submit 1p1c packages. However, fail immediately if any are in m_lazy_recent_rejects.
             std::optional<uint256> rejected_parent_reconsiderable;
-            for (const uint256& parent_txid : unique_parents) {
-                if (RecentRejectsFilter().contains(parent_txid)) {
+            for (const Txid& parent_txid : unique_parents) {
+                if (RecentRejectsFilter().contains(parent_txid.ToUint256())) {
                     fRejectedParents = true;
                     break;
-                } else if (RecentRejectsReconsiderableFilter().contains(parent_txid) &&
+                } else if (RecentRejectsReconsiderableFilter().contains(parent_txid.ToUint256()) &&
                            !m_opts.m_mempool.exists(GenTxid::Txid(parent_txid))) {
                     // More than 1 parent in m_lazy_recent_rejects_reconsiderable: 1p1c will not be
                     // sufficient to accept this package, so just give up here.
@@ -390,7 +390,7 @@ node::RejectedTxTodo TxDownloadManagerImpl::MempoolRejectedTx(const CTransaction
                         fRejectedParents = true;
                         break;
                     }
-                    rejected_parent_reconsiderable = parent_txid;
+                    rejected_parent_reconsiderable = parent_txid.ToUint256();
                 }
             }
             if (!fRejectedParents) {
@@ -422,8 +422,8 @@ node::RejectedTxTodo TxDownloadManagerImpl::MempoolRejectedTx(const CTransaction
                 }
 
                 // Once added to the orphan pool, a tx is considered AlreadyHave, and we shouldn't request it anymore.
-                m_txrequest.ForgetTxHash(tx.GetHash());
-                m_txrequest.ForgetTxHash(tx.GetWitnessHash());
+                m_txrequest.ForgetTxHash(tx.GetHash().ToUint256());
+                m_txrequest.ForgetTxHash(tx.GetWitnessHash().ToUint256());
 
                 // DoS prevention: do not allow m_orphanage to grow unbounded (see CVE-2012-3789)
                 // Note that, if the orphanage reaches capacity, it's possible that we immediately evict
@@ -442,8 +442,8 @@ node::RejectedTxTodo TxDownloadManagerImpl::MempoolRejectedTx(const CTransaction
                 // from any of our non-wtxidrelay peers.
                 RecentRejectsFilter().insert(tx.GetHash().ToUint256());
                 RecentRejectsFilter().insert(tx.GetWitnessHash().ToUint256());
-                m_txrequest.ForgetTxHash(tx.GetHash());
-                m_txrequest.ForgetTxHash(tx.GetWitnessHash());
+                m_txrequest.ForgetTxHash(tx.GetHash().ToUint256());
+                m_txrequest.ForgetTxHash(tx.GetWitnessHash().ToUint256());
             }
         }
     } else if (state.GetResult() == TxValidationResult::TX_WITNESS_STRIPPED) {
@@ -478,7 +478,7 @@ node::RejectedTxTodo TxDownloadManagerImpl::MempoolRejectedTx(const CTransaction
         } else {
             RecentRejectsFilter().insert(ptx->GetWitnessHash().ToUint256());
         }
-        m_txrequest.ForgetTxHash(ptx->GetWitnessHash());
+        m_txrequest.ForgetTxHash(ptx->GetWitnessHash().ToUint256());
         // If the transaction failed for TX_INPUTS_NOT_STANDARD,
         // then we know that the witness was irrelevant to the policy
         // failure, since this check depends only on the txid
@@ -491,7 +491,7 @@ node::RejectedTxTodo TxDownloadManagerImpl::MempoolRejectedTx(const CTransaction
         // rolling bloom filter.
         if (state.GetResult() == TxValidationResult::TX_INPUTS_NOT_STANDARD && ptx->HasWitness()) {
             RecentRejectsFilter().insert(ptx->GetHash().ToUint256());
-            m_txrequest.ForgetTxHash(ptx->GetHash());
+            m_txrequest.ForgetTxHash(ptx->GetHash().ToUint256());
         }
     }
 
@@ -515,8 +515,8 @@ void TxDownloadManagerImpl::MempoolRejectedPackage(const Package& package)
 
 std::pair<bool, std::optional<PackageToValidate>> TxDownloadManagerImpl::ReceivedTx(NodeId nodeid, const CTransactionRef& ptx)
 {
-    const uint256& txid = ptx->GetHash();
-    const uint256& wtxid = ptx->GetWitnessHash();
+    const uint256& txid = ptx->GetHash().ToUint256();
+    const uint256& wtxid = ptx->GetWitnessHash().ToUint256();
 
     // Mark that we have received a response
     m_txrequest.ReceivedResponse(nodeid, txid);
