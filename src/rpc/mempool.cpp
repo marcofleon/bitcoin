@@ -457,12 +457,12 @@ static RPCHelpMan getmempoolancestors()
     if (!request.params[1].isNull())
         fVerbose = request.params[1].get_bool();
 
-    uint256 hash = ParseHashV(request.params[0], "parameter 1");
+    Txid hash = Txid::FromUint256(ParseHashV(request.params[0], "parameter 1"));
 
     const CTxMemPool& mempool = EnsureAnyMemPool(request.context);
     LOCK(mempool.cs);
 
-    const auto entry{mempool.GetEntry(Txid::FromUint256(hash))};
+    const auto entry{mempool.GetEntry(hash)};
     if (entry == nullptr) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Transaction not in mempool");
     }
@@ -479,7 +479,7 @@ static RPCHelpMan getmempoolancestors()
         UniValue o(UniValue::VOBJ);
         for (CTxMemPool::txiter ancestorIt : ancestors) {
             const CTxMemPoolEntry &e = *ancestorIt;
-            const uint256& _hash = e.GetTx().GetHash();
+            const Txid& _hash = e.GetTx().GetHash();
             UniValue info(UniValue::VOBJ);
             entryToJSON(mempool, info, e);
             o.pushKV(_hash.ToString(), std::move(info));
@@ -544,7 +544,7 @@ static RPCHelpMan getmempooldescendants()
         UniValue o(UniValue::VOBJ);
         for (CTxMemPool::txiter descendantIt : setDescendants) {
             const CTxMemPoolEntry &e = *descendantIt;
-            const uint256& _hash = e.GetTx().GetHash();
+            const Txid& _hash = e.GetTx().GetHash();
             UniValue info(UniValue::VOBJ);
             entryToJSON(mempool, info, e);
             o.pushKV(_hash.ToString(), std::move(info));
@@ -570,12 +570,12 @@ static RPCHelpMan getmempoolentry()
         },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
-    uint256 hash = ParseHashV(request.params[0], "parameter 1");
+    Txid hash = Txid::FromUint256(ParseHashV(request.params[0], "parameter 1"));
 
     const CTxMemPool& mempool = EnsureAnyMemPool(request.context);
     LOCK(mempool.cs);
 
-    const auto entry{mempool.GetEntry(Txid::FromUint256(hash))};
+    const auto entry{mempool.GetEntry(hash)};
     if (entry == nullptr) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Transaction not in mempool");
     }
