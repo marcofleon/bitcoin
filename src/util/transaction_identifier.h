@@ -17,7 +17,7 @@ class transaction_identifier
 
     // TODO: Comparisons with uint256 should be disallowed once we have
     // converted most of the code to using the new txid types.
-    constexpr int Compare(const uint256& other) const { return m_wrapped.Compare(other); }
+    //constexpr int Compare(const uint256& other) const { return m_wrapped.Compare(other); }
     constexpr int Compare(const transaction_identifier<has_witness>& other) const { return m_wrapped.Compare(other.m_wrapped); }
     template <typename Other>
     constexpr int Compare(const Other& other) const
@@ -64,7 +64,7 @@ public:
      * TODO: This should be removed once the majority of the code has switched
      * to using the Txid and Wtxid types. Until then it makes for a smoother
      * transition to allow this conversion. */
-    operator const uint256&() const LIFETIMEBOUND { return m_wrapped; }
+    //operator const uint256&() const LIFETIMEBOUND { return m_wrapped; }
 };
 
 /** Txid commits to all transaction fields except the witness. */

@@ -97,9 +97,9 @@ bool WalletBatch::WriteTx(const CWalletTx& wtx)
     return WriteIC(std::make_pair(DBKeys::TX, wtx.GetHash()), wtx);
 }
 
-bool WalletBatch::EraseTx(uint256 hash)
+bool WalletBatch::EraseTx(Txid hash)
 {
-    return EraseIC(std::make_pair(DBKeys::TX, hash));
+    return EraseIC(std::make_pair(DBKeys::TX, hash.ToUint256()));
 }
 
 bool WalletBatch::WriteKeyMetadata(const CKeyMetadata& meta, const CPubKey& pubkey, const bool overwrite)
