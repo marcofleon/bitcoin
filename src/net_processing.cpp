@@ -1997,8 +1997,8 @@ void PeerManagerImpl::NewPoWValidBlock(const CBlockIndex *pindex, const std::sha
     {
         auto most_recent_block_txs = std::make_unique<std::map<uint256, CTransactionRef>>();
         for (const auto& tx : pblock->vtx) {
-            most_recent_block_txs->emplace(tx->GetHash(), tx);
-            most_recent_block_txs->emplace(tx->GetWitnessHash(), tx);
+            most_recent_block_txs->emplace(tx->GetHash().ToUint256(), tx);
+            most_recent_block_txs->emplace(tx->GetWitnessHash().ToUint256(), tx);
         }
 
         LOCK(m_most_recent_block_mutex);
