@@ -673,7 +673,7 @@ public:
     {
         if (!m_node.mempool) return false;
         LOCK(m_node.mempool->cs);
-        return m_node.mempool->exists(GenTxid::Txid(txid));
+        return m_node.mempool->exists2(txid);
     }
     bool hasDescendantsInMempool(const Txid& txid) override
     {

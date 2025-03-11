@@ -383,7 +383,7 @@ node::RejectedTxTodo TxDownloadManagerImpl::MempoolRejectedTx(const CTransaction
                     fRejectedParents = true;
                     break;
                 } else if (RecentRejectsReconsiderableFilter().contains(parent_txid.ToUint256()) &&
-                           !m_opts.m_mempool.exists(GenTxid::Txid(parent_txid))) {
+                           !m_opts.m_mempool.exists2(parent_txid)) {
                     // More than 1 parent in m_lazy_recent_rejects_reconsiderable: 1p1c will not be
                     // sufficient to accept this package, so just give up here.
                     if (rejected_parent_reconsiderable.has_value()) {
