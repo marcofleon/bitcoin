@@ -20,6 +20,7 @@
 #include <sync.h>
 #include <util/epochguard.h>
 #include <util/hasher.h>
+#include <util/overloaded.h>
 #include <util/result.h>
 #include <util/feefrac.h>
 
@@ -38,6 +39,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 class CChain;
@@ -653,20 +655,14 @@ public:
         return (mapTx.count(Txid::FromUint256(gtxid.GetHash())) != 0);
     }
 
-    /*
-     * bool exists(const GenTxidVariant& gtxid_variant) const
+    bool exists2(const GenTxidVariant& gtxid_variant) const
     {
         LOCK(cs);
-        return std::visit([this](const auto& id) {
-            using T = std::decay_t<decltype(id)>;
-            if constexpr (std::is_same_v<T, Wtxid>) {
-                return (mapTx.get<index_by_wtxid>().count(id) != 0);
-            } else {
-                return (mapTx.count(id) != 0);
-            }
+        return std::visit(util::Overloaded{
+            [this](const Wtxid& wtxid) EXCLUSIVE_LOCKS_REQUIRED(cs) { return (mapTx.get<index_by_wtxid>().count(wtxid) != 0); },
+            [this](const Txid& txid) EXCLUSIVE_LOCKS_REQUIRED(cs) { return (mapTx.count(txid) != 0); }
         }, gtxid_variant);
     }
-    */
 
     const CTxMemPoolEntry* GetEntry(const Txid& txid) const LIFETIMEBOUND EXCLUSIVE_LOCKS_REQUIRED(cs);
 
@@ -692,7 +688,7 @@ public:
         LOCK(cs);
         // Sanity check the transaction is in the mempool & insert into
         // unbroadcast set.
-        if (exists(GenTxid::Txid(txid.ToUint256()))) m_unbroadcast_txids.insert(txid);
+        if (exists2(txid)) m_unbroadcast_txids.insert(txid);
     };
 
     /** Removes a transaction from the unbroadcast set */
