@@ -123,3 +123,13 @@ GenTxid ToGenTxid(const CInv& inv)
     assert(inv.IsGenTxMsg());
     return inv.IsMsgWtx() ? GenTxid::Wtxid(inv.hash) : GenTxid::Txid(inv.hash);
 }
+
+GenTxidVariant ToGenTxid2(const CInv& inv)
+{
+    assert(inv.IsGenTxMsg());
+    if (inv.IsMsgWtx()) {
+        return Wtxid::FromUint256(inv.hash);
+    } else {
+        return Txid::FromUint256(inv.hash);
+    }
+}

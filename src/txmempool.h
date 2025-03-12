@@ -672,7 +672,7 @@ public:
         AssertLockHeld(cs);
         return mapTx.project<0>(mapTx.get<index_by_wtxid>().find(wtxid));
     }
-    TxMempoolInfo info(const GenTxid& gtxid) const;
+    TxMempoolInfo info(const GenTxidVariant& gtxid) const;
 
     /** Returns info for a transaction if its entry_sequence < last_sequence */
     TxMempoolInfo info_for_relay(const GenTxid& gtxid, uint64_t last_sequence) const;

@@ -890,10 +890,17 @@ CTransactionRef CTxMemPool::get(const Txid& hash) const
     return i->GetSharedTx();
 }
 
-TxMempoolInfo CTxMemPool::info(const GenTxid& gtxid) const
+TxMempoolInfo CTxMemPool::info(const GenTxidVariant& gtxid) const
 {
     LOCK(cs);
-    indexed_transaction_set::const_iterator i = (gtxid.IsWtxid() ? get_iter_from_wtxid(Wtxid::FromUint256(gtxid.GetHash())) : mapTx.find(Txid::FromUint256(gtxid.GetHash())));
+    //indexed_transaction_set::const_iterator i = (gtxid.IsWtxid() ? get_iter_from_wtxid(Wtxid::FromUint256(gtxid.GetHash())) : mapTx.find(Txid::FromUint256(gtxid.GetHash())));
+
+    indexed_transaction_set::const_iterator i = std::visit(util::Overloaded{
+        [this](const Wtxid& wtxid) EXCLUSIVE_LOCKS_REQUIRED(cs) { return get_iter_from_wtxid(wtxid); },
+        [this](const Txid& txid) EXCLUSIVE_LOCKS_REQUIRED(cs) { return mapTx.find(txid); }
+    }, gtxid);
+
+
     if (i == mapTx.end())
         return TxMempoolInfo();
     return GetInfo(i);
