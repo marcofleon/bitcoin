@@ -137,7 +137,7 @@ public:
     /** Consider adding this tx hash to txrequest. Should be called whenever a new inv has been received.
      * Also called internally when a transaction is missing parents so that we can request them.
      * Returns true if this was a dropped inv (p2p_inv=true and we already have the tx), false otherwise. */
-    bool AddTxAnnouncement(NodeId peer, const GenTxid& gtxid, std::chrono::microseconds now);
+    bool AddTxAnnouncement(NodeId peer, const GenTxidVariant& gtxid, std::chrono::microseconds now);
 
     /** Get getdata requests to send. */
     std::vector<GenTxid> GetRequestsToSend(NodeId nodeid, std::chrono::microseconds current_time);

@@ -83,7 +83,6 @@ bool CheckEphemeralSpends(const Package& package, CFeeRate dust_relay_rate, cons
         }
 
         if (!unspent_parent_dust.empty()) {
-<<<<<<< HEAD
             const Txid& out_child_txid = tx->GetHash();
             out_child_wtxid = tx->GetWitnessHash();
             out_child_state.Invalid(TxValidationResult::TX_MEMPOOL_POLICY, "missing-ephemeral-spends",

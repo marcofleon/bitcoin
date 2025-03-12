@@ -826,7 +826,7 @@ private:
     std::shared_ptr<const CBlock> m_most_recent_block GUARDED_BY(m_most_recent_block_mutex);
     std::shared_ptr<const CBlockHeaderAndShortTxIDs> m_most_recent_compact_block GUARDED_BY(m_most_recent_block_mutex);
     uint256 m_most_recent_block_hash GUARDED_BY(m_most_recent_block_mutex);
-    std::unique_ptr<const std::map<uint256, CTransactionRef>> m_most_recent_block_txs GUARDED_BY(m_most_recent_block_mutex);
+    std::unique_ptr<const std::map<GenTxidVariant, CTransactionRef>> m_most_recent_block_txs GUARDED_BY(m_most_recent_block_mutex);
 
     // Data about the low-work headers synchronization, aggregated from all peers' HeadersSyncStates.
     /** Mutex guarding the other m_headers_presync_* variables. */
@@ -917,7 +917,7 @@ private:
     std::atomic<std::chrono::seconds> m_last_tip_update{0s};
 
     /** Determine whether or not a peer can request a transaction, and return it (or nullptr if not found or not allowed). */
-    CTransactionRef FindTxForGetData(const Peer::TxRelay& tx_relay, const GenTxid& gtxid)
+    CTransactionRef FindTxForGetData(const Peer::TxRelay& tx_relay, const GenTxidVariant& gtxid)
         EXCLUSIVE_LOCKS_REQUIRED(!m_most_recent_block_mutex, NetEventsInterface::g_msgproc_mutex);
 
     void ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic<bool>& interruptMsgProc)
@@ -1995,10 +1995,10 @@ void PeerManagerImpl::NewPoWValidBlock(const CBlockIndex *pindex, const std::sha
         std::async(std::launch::deferred, [&] { return NetMsg::Make(NetMsgType::CMPCTBLOCK, *pcmpctblock); })};
 
     {
-        auto most_recent_block_txs = std::make_unique<std::map<uint256, CTransactionRef>>();
+        auto most_recent_block_txs = std::make_unique<std::map<GenTxidVariant, CTransactionRef>>();
         for (const auto& tx : pblock->vtx) {
-            most_recent_block_txs->emplace(tx->GetHash().ToUint256(), tx);
-            most_recent_block_txs->emplace(tx->GetWitnessHash().ToUint256(), tx);
+            most_recent_block_txs->emplace(tx->GetHash(), tx);
+            most_recent_block_txs->emplace(tx->GetWitnessHash(), tx);
         }
 
         LOCK(m_most_recent_block_mutex);
@@ -2365,7 +2365,7 @@ void PeerManagerImpl::ProcessGetBlockData(CNode& pfrom, Peer& peer, const CInv& 
     }
 }
 
-CTransactionRef PeerManagerImpl::FindTxForGetData(const Peer::TxRelay& tx_relay, const GenTxid& gtxid)
+CTransactionRef PeerManagerImpl::FindTxForGetData(const Peer::TxRelay& tx_relay, const GenTxidVariant& gtxid)
 {
     // If a tx was in the mempool prior to the last INV for this peer, permit the request.
     auto txinfo = m_mempool.info_for_relay(gtxid, tx_relay.m_last_inv_sequence);
@@ -2377,7 +2377,7 @@ CTransactionRef PeerManagerImpl::FindTxForGetData(const Peer::TxRelay& tx_relay,
     {
         LOCK(m_most_recent_block_mutex);
         if (m_most_recent_block_txs != nullptr) {
-            auto it = m_most_recent_block_txs->find(gtxid.GetHash());
+            auto it = m_most_recent_block_txs->find(gtxid);
             if (it != m_most_recent_block_txs->end()) return it->second;
         }
     }
@@ -2411,7 +2411,7 @@ void PeerManagerImpl::ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic
             continue;
         }
 
-        CTransactionRef tx = FindTxForGetData(*tx_relay, ToGenTxid(inv));
+        CTransactionRef tx = FindTxForGetData(*tx_relay, ToGenTxid2(inv));
         if (tx) {
             // WTX and WITNESS_TX imply we serialize with witness
             const auto maybe_with_witness = (inv.IsMsgTx() ? TX_NO_WITNESS : TX_WITH_WITNESS);
@@ -3945,7 +3945,7 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
                     pfrom.fDisconnect = true;
                     return;
                 }
-                const GenTxid gtxid = ToGenTxid(inv);
+                const GenTxidVariant gtxid = ToGenTxid2(inv);
                 AddKnownTx(*peer, inv.hash);
 
                 if (!m_chainman.IsInitialBlockDownload()) {
@@ -5382,19 +5382,17 @@ namespace {
 class CompareInvMempoolOrder
 {
     CTxMemPool* mp;
-    bool m_wtxid_relay;
 public:
-    explicit CompareInvMempoolOrder(CTxMemPool *_mempool, bool use_wtxid)
+    explicit CompareInvMempoolOrder(CTxMemPool *_mempool)
     {
         mp = _mempool;
-        m_wtxid_relay = use_wtxid;
     }
 
     bool operator()(std::set<GenTxidVariant>::iterator a, std::set<GenTxidVariant>::iterator b)
     {
         /* As std::make_heap produces a max-heap, we want the entries with the
          * fewest ancestors/highest fee to sort later. */
-        return mp->CompareDepthAndScore(GenTxidToUint256(*b), GenTxidToUint256(*a), m_wtxid_relay);
+        return mp->CompareDepthAndScore(*b, *a);
     }
 };
 } // namespace
@@ -5741,7 +5739,7 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                     const CFeeRate filterrate{tx_relay->m_fee_filter_received.load()};
                     // Topologically and fee-rate sort the inventory we send for privacy and priority reasons.
                     // A heap is used so that not all items need sorting if only a few are being sent.
-                    CompareInvMempoolOrder compareInvMempoolOrder(&m_mempool, peer->m_wtxid_relay);
+                    CompareInvMempoolOrder compareInvMempoolOrder(&m_mempool);
                     std::make_heap(vInvTx.begin(), vInvTx.end(), compareInvMempoolOrder);
                     // No reason to drain out at many times the network's capacity,
                     // especially since we have many peers and some will draw much shorter delays.
