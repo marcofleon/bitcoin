@@ -430,17 +430,26 @@ inline const uint256& GenTxidToUint256(const GenTxidVariant& gtxid LIFETIMEBOUND
     return std::visit([](const auto& id) -> const uint256& { return id.ToUint256(); }, gtxid);
 }
 
+inline bool operator<(const GenTxidVariant& a, const GenTxidVariant& b) {
+    return GenTxidToUint256(a) < GenTxidToUint256(b);
+}
+
+inline bool operator==(const GenTxidVariant& a, const GenTxidVariant& b) {
+    return GenTxidToUint256(a) == GenTxidToUint256(b);
+}
+
 
 /** A generic txid reference (txid or wtxid). */
+/*
 class GenTxid
 {
 private:
     bool m_is_wtxid;
     // Old implementation
-    /*
+
     uint256 m_hash;
     GenTxid(bool is_wtxid, const uint256& hash) : m_is_wtxid(is_wtxid), m_hash(hash) {}
-    */
+
 
     // New implementation
     union {
@@ -454,10 +463,10 @@ private:
 
 public:
     // Old factory methods (commented out)
-    /*
+
     static GenTxid Txid(const uint256& hash) { return GenTxid{false, hash}; }
     static GenTxid Wtxid(const uint256& hash) { return GenTxid{true, hash}; }
-    */
+
 
     // New factory methods
     static GenTxid Txid(const ::Txid& txid) { return GenTxid(txid); }
@@ -470,9 +479,9 @@ public:
     bool IsWtxid() const { return m_is_wtxid; }
 
     // Old accessor (commented out)
-    /*
+
     const uint256& GetHash() const LIFETIMEBOUND { return m_hash; }
-    */
+
 
     // Get the hash as the appropriate type
     const ::Txid& GetTxid() const LIFETIMEBOUND {
@@ -491,10 +500,10 @@ public:
     }
 
     // Old comparison operators (commented out)
-    /*
+
     friend bool operator==(const GenTxid& a, const GenTxid& b) { return a.m_is_wtxid == b.m_is_wtxid && a.m_hash == b.m_hash; }
     friend bool operator<(const GenTxid& a, const GenTxid& b) { return std::tie(a.m_is_wtxid, a.m_hash) < std::tie(b.m_is_wtxid, b.m_hash); }
-    */
+
 
     friend bool operator==(const GenTxid& a, const GenTxid& b) {
         if (a.m_is_wtxid != b.m_is_wtxid) return false;
@@ -506,5 +515,6 @@ public:
         return a.m_is_wtxid ? (a.m_wtxid < b.m_wtxid) : (a.m_txid < b.m_txid);
     }
 };
+*/
 
 #endif // BITCOIN_PRIMITIVES_TRANSACTION_H
