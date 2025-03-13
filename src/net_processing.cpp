@@ -4877,11 +4877,11 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
     if (msg_type == NetMsgType::NOTFOUND) {
         std::vector<CInv> vInv;
         vRecv >> vInv;
-        std::vector<uint256> tx_invs;
+        std::vector<GenTxidVariant> tx_invs;
         if (vInv.size() <= node::MAX_PEER_TX_ANNOUNCEMENTS + MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
             for (CInv &inv : vInv) {
                 if (inv.IsGenTxMsg()) {
-                    tx_invs.emplace_back(inv.hash);
+                    tx_invs.emplace_back(ToGenTxid2(inv));
                 }
             }
         }
@@ -5899,8 +5899,8 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
         //
         {
             LOCK(m_tx_download_mutex);
-            for (const GenTxid& gtxid : m_txdownloadman.GetRequestsToSend(pto->GetId(), current_time)) {
-                vGetData.emplace_back(gtxid.IsWtxid() ? MSG_WTX : (MSG_TX | GetFetchFlags(*peer)), gtxid.GetHash());
+            for (const GenTxidVariant& gtxid : m_txdownloadman.GetRequestsToSend(pto->GetId(), current_time)) {
+                vGetData.emplace_back(std::holds_alternative<Wtxid>(gtxid) ? MSG_WTX : (MSG_TX | GetFetchFlags(*peer)), GenTxidToUint256(gtxid));
                 if (vGetData.size() >= MAX_GETDATA_SZ) {
                     MakeAndPushMessage(*pto, NetMsgType::GETDATA, vGetData);
                     vGetData.clear();
