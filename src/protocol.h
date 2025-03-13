@@ -525,7 +525,7 @@ public:
     uint256 hash;
 };
 
-GenTxid ToGenTxid(const CInv& inv);
+//GenTxid ToGenTxid(const CInv& inv);
 
 /** Convert a TX/WITNESS_TX/WTX CInv to a GenTxid. */
 GenTxidVariant ToGenTxid2(const CInv& inv);

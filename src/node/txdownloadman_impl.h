@@ -166,10 +166,10 @@ public:
     bool AddTxAnnouncement(NodeId peer, const GenTxidVariant& gtxid, std::chrono::microseconds now);
 
     /** Get getdata requests to send. */
-    std::vector<GenTxid> GetRequestsToSend(NodeId nodeid, std::chrono::microseconds current_time);
+    std::vector<GenTxidVariant> GetRequestsToSend(NodeId nodeid, std::chrono::microseconds current_time);
 
     /** Marks a tx as ReceivedResponse in txrequest. */
-    void ReceivedNotFound(NodeId nodeid, const std::vector<uint256>& txhashes);
+    void ReceivedNotFound(NodeId nodeid, const std::vector<GenTxidVariant>& txhashes);
 
     /** Look for a child of this transaction in the orphanage to form a 1-parent-1-child package,
      * skipping any combinations that have already been tried. Return the resulting package along with

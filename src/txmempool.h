@@ -645,7 +645,7 @@ public:
         AssertLockHeld(cs);
         return m_total_fee;
     }
-
+    /*
     bool exists(const GenTxid& gtxid) const
     {
         LOCK(cs);
@@ -654,6 +654,7 @@ public:
         }
         return (mapTx.count(Txid::FromUint256(gtxid.GetHash())) != 0);
     }
+    */
 
     bool exists2(const GenTxidVariant& gtxid_variant) const
     {

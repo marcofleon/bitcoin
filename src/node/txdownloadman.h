@@ -140,10 +140,10 @@ public:
     bool AddTxAnnouncement(NodeId peer, const GenTxidVariant& gtxid, std::chrono::microseconds now);
 
     /** Get getdata requests to send. */
-    std::vector<GenTxid> GetRequestsToSend(NodeId nodeid, std::chrono::microseconds current_time);
+    std::vector<GenTxidVariant> GetRequestsToSend(NodeId nodeid, std::chrono::microseconds current_time);
 
     /** Should be called when a notfound for a tx has been received. */
-    void ReceivedNotFound(NodeId nodeid, const std::vector<uint256>& txhashes);
+    void ReceivedNotFound(NodeId nodeid, const std::vector<GenTxidVariant>& txhashes);
 
     /** Respond to successful transaction submission to mempool */
     void MempoolAcceptedTx(const CTransactionRef& tx);
