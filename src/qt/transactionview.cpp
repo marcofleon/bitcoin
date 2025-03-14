@@ -193,7 +193,7 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     // Double-clicking on a transaction on the transaction history page shows details
     connect(this, &TransactionView::doubleClicked, this, &TransactionView::showDetails);
     // Highlight transaction after fee bump
-    connect(this, &TransactionView::bumpedFee, [this](const uint256& txid) {
+    connect(this, &TransactionView::bumpedFee, [this](const Txid& txid) {
       focusTransaction(txid);
     });
 }
@@ -397,8 +397,8 @@ void TransactionView::contextualMenu(const QPoint &point)
     // check if transaction can be abandoned, disable context menu action in case it doesn't
     uint256 hash;
     hash.SetHexDeprecated(selection.at(0).data(TransactionTableModel::TxHashRole).toString().toStdString());
-    abandonAction->setEnabled(model->wallet().transactionCanBeAbandoned(hash));
-    bumpFeeAction->setEnabled(model->wallet().transactionCanBeBumped(hash));
+    abandonAction->setEnabled(model->wallet().transactionCanBeAbandoned(Txid::FromUint256(hash)));
+    bumpFeeAction->setEnabled(model->wallet().transactionCanBeBumped(Txid::FromUint256(hash)));
     copyAddressAction->setEnabled(GUIUtil::hasEntryData(transactionView, 0, TransactionTableModel::AddressRole));
     copyLabelAction->setEnabled(GUIUtil::hasEntryData(transactionView, 0, TransactionTableModel::LabelRole));
 
@@ -419,7 +419,7 @@ void TransactionView::abandonTx()
     hash.SetHexDeprecated(hashQStr.toStdString());
 
     // Abandon the wallet transaction over the walletModel
-    model->wallet().abandonTransaction(hash);
+    model->wallet().abandonTransaction(Txid::FromUint256(hash));
 }
 
 void TransactionView::bumpFee([[maybe_unused]] bool checked)
@@ -434,8 +434,8 @@ void TransactionView::bumpFee([[maybe_unused]] bool checked)
     hash.SetHexDeprecated(hashQStr.toStdString());
 
     // Bump tx fee over the walletModel
-    uint256 newHash;
-    if (model->bumpFee(hash, newHash)) {
+    Txid newHash;
+    if (model->bumpFee(Txid::FromUint256(hash), newHash)) {
         // Update the table
         transactionView->selectionModel()->clearSelection();
         model->getTransactionTableModel()->updateTransaction(hashQStr, CT_UPDATED, true);
@@ -602,7 +602,7 @@ void TransactionView::focusTransaction(const QModelIndex &idx)
     transactionView->setFocus();
 }
 
-void TransactionView::focusTransaction(const uint256& txid)
+void TransactionView::focusTransaction(const Txid& txid)
 {
     if (!transactionProxyModel)
         return;
