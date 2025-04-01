@@ -143,7 +143,7 @@ bool TxDownloadManagerImpl::AlreadyHaveTx(const GenTxid& gtxid, bool include_rec
 
     if (in_orphanage) return true;
 
-    const uint256& hash = GenTxidToUint256(gtxid);
+    const uint256& hash = gtxid.ToUint256();
 
     if (include_reconsiderable && RecentRejectsReconsiderableFilter().contains(hash)) return true;
 
@@ -274,12 +274,12 @@ std::vector<GenTxid> TxDownloadManagerImpl::GetRequestsToSend(NodeId nodeid, std
     auto requestable = m_txrequest.GetRequestable(nodeid, current_time, &expired);
     for (const auto& entry : expired) {
         LogDebug(BCLog::NET, "timeout of inflight %s %s from peer=%d\n", std::holds_alternative<Wtxid>(entry.second) ? "wtx" : "tx",
-            GenTxidToUint256(entry.second).ToString(), entry.first);
+            entry.second.ToUint256().ToString(), entry.first);
     }
     for (const GenTxid& gtxid : requestable) {
         if (!AlreadyHaveTx(gtxid, /*include_reconsiderable=*/false)) {
             LogDebug(BCLog::NET, "Requesting %s %s peer=%d\n", std::holds_alternative<Wtxid>(gtxid) ? "wtx" : "tx",
-                GenTxidToUint256(gtxid).ToString(), nodeid);
+                gtxid.ToUint256().ToString(), nodeid);
             requests.emplace_back(gtxid);
             m_txrequest.RequestedTx(nodeid, gtxid, current_time + GETDATA_TX_INTERVAL);
         } else {

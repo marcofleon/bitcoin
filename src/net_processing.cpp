@@ -2141,7 +2141,7 @@ void PeerManagerImpl::RelayTransaction(const Txid& txid, const Wtxid& wtxid)
             gtxid = txid;
         }
 
-        if (!tx_relay->m_tx_inventory_known_filter.contains(GenTxidToUint256(gtxid))) {
+        if (!tx_relay->m_tx_inventory_known_filter.contains(gtxid.ToUint256())) {
             tx_relay->m_tx_inventory_to_send.insert(gtxid);
         }
     };
@@ -5753,11 +5753,11 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                         std::set<GenTxid>::iterator it = vInvTx.back();
                         vInvTx.pop_back();
                         GenTxid hash = *it;
-                        CInv inv(peer->m_wtxid_relay ? MSG_WTX : MSG_TX, GenTxidToUint256(hash));
+                        CInv inv(peer->m_wtxid_relay ? MSG_WTX : MSG_TX, hash.ToUint256());
                         // Remove it from the to-be-sent set
                         tx_relay->m_tx_inventory_to_send.erase(it);
                         // Check if not in the filter already
-                        if (tx_relay->m_tx_inventory_known_filter.contains(GenTxidToUint256(hash))) {
+                        if (tx_relay->m_tx_inventory_known_filter.contains(hash.ToUint256())) {
                             continue;
                         }
                         // Not in the mempool anymore? don't bother sending it.
@@ -5777,7 +5777,7 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                             MakeAndPushMessage(*pto, NetMsgType::INV, vInv);
                             vInv.clear();
                         }
-                        tx_relay->m_tx_inventory_known_filter.insert(GenTxidToUint256(hash));
+                        tx_relay->m_tx_inventory_known_filter.insert(hash.ToUint256());
                     }
 
                     // Ensure we'll respond to GETDATA requests for anything we've just announced
@@ -5900,7 +5900,7 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
         {
             LOCK(m_tx_download_mutex);
             for (const GenTxid& gtxid : m_txdownloadman.GetRequestsToSend(pto->GetId(), current_time)) {
-                vGetData.emplace_back(std::holds_alternative<Wtxid>(gtxid) ? MSG_WTX : (MSG_TX | GetFetchFlags(*peer)), GenTxidToUint256(gtxid));
+                vGetData.emplace_back(std::holds_alternative<Wtxid>(gtxid) ? MSG_WTX : (MSG_TX | GetFetchFlags(*peer)), gtxid.ToUint256());
                 if (vGetData.size() >= MAX_GETDATA_SZ) {
                     MakeAndPushMessage(*pto, NetMsgType::GETDATA, vGetData);
                     vGetData.clear();

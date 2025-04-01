@@ -518,8 +518,8 @@ void TxRequestTest::BuildWtxidTest(Scenario& scenario, int config)
     auto peerT = scenario.NewPeer();
     auto peerW = scenario.NewPeer();
     auto gtxid = scenario.NewGTxid();
-    auto txid = Txid::FromUint256(GenTxidToUint256(gtxid));
-    auto wtxid = Wtxid::FromUint256(GenTxidToUint256(gtxid));
+    auto txid = Txid::FromUint256(gtxid.ToUint256());
+    auto wtxid = Wtxid::FromUint256(gtxid.ToUint256());
 
     auto reqtimeT = m_rng.randbool() ? MIN_TIME : scenario.Now() + RandomTime8s();
     auto reqtimeW = m_rng.randbool() ? MIN_TIME : scenario.Now() + RandomTime8s();
