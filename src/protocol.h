@@ -528,6 +528,6 @@ public:
 //GenTxid ToGenTxid(const CInv& inv);
 
 /** Convert a TX/WITNESS_TX/WTX CInv to a GenTxid. */
-GenTxidVariant ToGenTxid2(const CInv& inv);
+GenTxid ToGenTxid2(const CInv& inv);
 
 #endif // BITCOIN_PROTOCOL_H

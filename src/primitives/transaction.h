@@ -424,21 +424,22 @@ struct CMutableTransaction
 typedef std::shared_ptr<const CTransaction> CTransactionRef;
 template <typename Tx> static inline CTransactionRef MakeTransactionRef(Tx&& txIn) { return std::make_shared<const CTransaction>(std::forward<Tx>(txIn)); }
 
-using GenTxidVariant = std::variant<Txid, Wtxid>;
+/*
+using GenTxid = std::variant<Txid, Wtxid>;
 
-inline const uint256& GenTxidToUint256(const GenTxidVariant& gtxid LIFETIMEBOUND) {
+inline const uint256& GenTxidToUint256(const GenTxid& gtxid LIFETIMEBOUND) {
     return std::visit([](const auto& id) -> const uint256& { return id.ToUint256(); }, gtxid);
 }
 
-inline bool operator<(const GenTxidVariant& a, const GenTxidVariant& b) {
+inline bool operator<(const GenTxid& a, const GenTxid& b) {
     return GenTxidToUint256(a) < GenTxidToUint256(b);
 }
 
-inline bool operator==(const GenTxidVariant& a, const GenTxidVariant& b) {
+inline bool operator==(const GenTxid& a, const GenTxid& b) {
     return GenTxidToUint256(a) == GenTxidToUint256(b);
 }
 
-
+*/
 /** A generic txid reference (txid or wtxid). */
 /*
 class GenTxid
