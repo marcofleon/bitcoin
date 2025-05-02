@@ -84,6 +84,10 @@ bool BlockTreeDB::WriteBatchSync(const std::vector<std::pair<int, const CBlockFi
     }
     batch.Write(DB_LAST_BLOCK, nLastFile);
     for (const CBlockIndex* bi : blockinfo) {
+        //uint256 blockHash = bi->GetBlockHeader().GetHash();
+        //uint256 blockHash2 = bi->GetBlockHash();
+        //printf("Write [DB]: Writing key = %s\n", blockHash.ToString().c_str());
+        //printf("Write2 [DB]: Writing key = %s\n", blockHash2.ToString().c_str());
         batch.Write(std::make_pair(DB_BLOCK_INDEX, bi->GetBlockHash()), CDiskBlockIndex{bi});
     }
     return WriteBatch(batch, true);
@@ -117,6 +121,7 @@ bool BlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, s
         if (pcursor->GetKey(key) && key.first == DB_BLOCK_INDEX) {
             CDiskBlockIndex diskindex;
             if (pcursor->GetValue(diskindex)) {
+                //printf("Load [DB]: Read record, calculated hash = %s\n", diskindex.ConstructBlockHash().ToString().c_str());
                 // Construct block index object
                 CBlockIndex* pindexNew = insertBlockIndex(diskindex.ConstructBlockHash());
                 pindexNew->pprev          = insertBlockIndex(diskindex.hashPrev);
@@ -132,10 +137,15 @@ bool BlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, s
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
 
+                 
+                //printf("Load [DB]: Hash for PoW check = %s, nBits = %#0x\n", pindexNew->GetBlockHash().ToString().c_str(), pindexNew->nBits);
+                
                 if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, consensusParams)) {
                     LogError("%s: CheckProofOfWork failed: %s\n", __func__, pindexNew->ToString());
                     return false;
                 }
+                
+                
 
                 pcursor->Next();
             } else {

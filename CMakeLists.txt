@@ -522,7 +522,7 @@ else()
 
   try_append_cxx_flags("-Wstack-protector" TARGET core_interface SKIP_LINK)
   try_append_cxx_flags("-fstack-protector-all" TARGET core_interface)
-  try_append_cxx_flags("-fcf-protection=full" TARGET core_interface)
+  #try_append_cxx_flags("-fcf-protection=full" TARGET core_interface)
 
   if(MINGW)
     # stack-clash-protection is a no-op for Windows.
