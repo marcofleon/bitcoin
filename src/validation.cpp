@@ -3138,7 +3138,7 @@ bool Chainstate::ConnectTip(
     LogDebug(BCLog::BENCH, "  - Load block from disk: %.2fms\n",
              Ticks<MillisecondsDouble>(time_2 - time_1));
     {
-        m_chainman.GetInputFetcher().FetchInputs(CoinsTip(), CoinsDB(), blockConnecting);
+        m_chainman.GetInputFetcher().FetchInputs(CoinsTip(), CoinsDB(), *block_to_connect);
 
         CCoinsViewCache view(&CoinsTip());
         bool rv = ConnectBlock(*block_to_connect, state, pindexNew, view);
