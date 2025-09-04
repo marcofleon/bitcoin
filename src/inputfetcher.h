@@ -11,7 +11,7 @@
 #include <txdb.h>
 #include <util/hasher.h>
 #include <util/threadnames.h>
-#include <util/transaction_identifier.h>
+#include <primitives/transaction_identifier.h>
 
 #include <cstdint>
 #include <stdexcept>
