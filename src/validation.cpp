@@ -4612,6 +4612,11 @@ bool Chainstate::LoadChainTip()
     m_chainman.UpdateIBDStatus();
     tip = m_chain.Tip();
 
+    // Erase the tip from candidates before changing nSequenceId. The set uses
+    // nSequenceId for ordering, so modifying it while the block is in the set
+    // is undefined behavior.
+    setBlockIndexCandidates.erase(tip);
+
     // Make sure our chain tip before shutting down scores better than any other candidate
     // to maintain a consistent best tip over reboots in case of a tie.
     auto target = tip;
@@ -4620,9 +4625,7 @@ bool Chainstate::LoadChainTip()
         target = target->pprev;
     }
 
-    // Block index candidates are loaded before the chain tip, so we need to replace this entry
-    // Otherwise the scoring will be based on the memory address location instead of the nSequenceId
-    setBlockIndexCandidates.erase(tip);
+    // Re-add the tip with its updated nSequenceId.
     TryAddBlockIndexCandidate(tip);
     PruneBlockIndexCandidates();
 
