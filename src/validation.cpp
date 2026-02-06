@@ -4612,6 +4612,11 @@ bool Chainstate::LoadChainTip()
     m_chainman.UpdateIBDStatus();
     tip = m_chain.Tip();
 
+    // nSequenceId is about to be modified, so all candidate sets should be empty to avoid UB.
+    for (const auto& cs : m_chainman.m_chainstates) {
+        assert(cs->setBlockIndexCandidates.empty());
+    }
+
     // Make sure our chain tip before shutting down scores better than any other candidate
     // to maintain a consistent best tip over reboots in case of a tie.
     auto target = tip;
@@ -4620,13 +4625,6 @@ bool Chainstate::LoadChainTip()
         target = target->pprev;
     }
 
-    // Block index candidates are loaded before the chain tip, so we need to replace this entry
-    // Otherwise the scoring will be based on the memory address location instead of the nSequenceId
-    setBlockIndexCandidates.erase(tip);
-    TryAddBlockIndexCandidate(tip);
-    PruneBlockIndexCandidates();
-
-    tip = m_chain.Tip();
     LogInfo("Loaded best chain: hashBestChain=%s height=%d date=%s progress=%f",
               tip->GetBlockHash().ToString(),
               m_chain.Height(),
@@ -4931,6 +4929,25 @@ void Chainstate::ClearBlockIndexCandidates()
     setBlockIndexCandidates.clear();
 }
 
+void Chainstate::PopulateBlockIndexCandidates()
+{
+    AssertLockHeld(::cs_main);
+    setBlockIndexCandidates.clear();
+
+    // With assumeutxo, the snapshot block is a candidate for the tip, but it
+    // may not have BLOCK_VALID_TRANSACTIONS (e.g. if we haven't yet downloaded
+    // the block), so we special-case it here.
+    const CBlockIndex* snap_base{m_chainman.CurrentChainstate().SnapshotBase()};
+
+    for (CBlockIndex* pindex : m_blockman.GetAllBlockIndices()) {
+        if (pindex == snap_base ||
+                (pindex->IsValid(BLOCK_VALID_TRANSACTIONS) &&
+                 (pindex->HaveNumChainTxs() || pindex->pprev == nullptr))) {
+            TryAddBlockIndexCandidate(pindex);
+        }
+    }
+}
+
 bool ChainstateManager::LoadBlockIndex()
 {
     AssertLockHeld(cs_main);
@@ -4947,19 +4964,6 @@ bool ChainstateManager::LoadBlockIndex()
 
         for (CBlockIndex* pindex : vSortedByHeight) {
             if (m_interrupt) return false;
-            // If we have an assumeutxo-based chainstate, then the snapshot
-            // block will be a candidate for the tip, but it may not be
-            // VALID_TRANSACTIONS (eg if we haven't yet downloaded the block),
-            // so we special-case the snapshot block as a potential candidate
-            // here.
-            if (pindex == CurrentChainstate().SnapshotBase() ||
-                    (pindex->IsValid(BLOCK_VALID_TRANSACTIONS) &&
-                     (pindex->HaveNumChainTxs() || pindex->pprev == nullptr))) {
-
-                for (const auto& chainstate : m_chainstates) {
-                    chainstate->TryAddBlockIndexCandidate(pindex);
-                }
-            }
             if (pindex->nStatus & BLOCK_FAILED_MASK && (!m_best_invalid || pindex->nChainWork > m_best_invalid->nChainWork)) {
                 m_best_invalid = pindex;
             }
@@ -5753,6 +5757,11 @@ util::Result<CBlockIndex*> ChainstateManager::ActivateSnapshot(
     assert(chaintip_loaded);
     m_blockman.m_snapshot_height = Assert(chainstate.SnapshotBase())->nHeight;
 
+    // Due to the early return in LoadChainTip(), no nSequenceIds were
+    // modified, so the historical chainstate's candidate set remains correctly
+    // ordered. Only populate the snapshot chainstate's candidate set.
+    chainstate.PopulateBlockIndexCandidates();
+
     LogInfo("[snapshot] successfully activated snapshot %s", base_blockhash.ToString());
     LogInfo("[snapshot] (%.2f MB)",
               chainstate.CoinsTip().DynamicMemoryUsage() / (1000 * 1000));
@@ -5981,7 +5990,6 @@ util::Result<void> ChainstateManager::PopulateAndValidateSnapshot(
     assert(index);
     assert(index == snapshot_start_block);
     index->m_chain_tx_count = au_data.m_chain_tx_count;
-    snapshot_chainstate.setBlockIndexCandidates.insert(snapshot_start_block);
 
     LogInfo("[snapshot] validated snapshot (%.2f MB)",
         coins_cache.DynamicMemoryUsage() / (1000 * 1000));
