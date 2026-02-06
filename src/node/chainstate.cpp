@@ -126,6 +126,13 @@ static ChainstateLoadResult CompleteChainstateInitialization(
         }
     }
 
+    // Populate setBlockIndexCandidates after LoadChainTip(), which modifies nSequenceId.
+    // Because nSequenceId is used in the set's comparator, mutating it while blocks are 
+    // in the set would be undefined behavior.
+    for (const auto& chainstate : chainman.m_chainstates) {
+        chainstate->PopulateBlockIndexCandidates();
+    }
+
     const auto& chainstates{chainman.m_chainstates};
     if (std::any_of(chainstates.begin(), chainstates.end(),
                     [](const auto& cs) EXCLUSIVE_LOCKS_REQUIRED(cs_main) { return cs->NeedsRedownload(); })) {
