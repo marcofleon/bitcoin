@@ -88,7 +88,6 @@ FUZZ_TARGET(process_message, .init = initialize_process_message)
                                      /*banman=*/nullptr, chainman,
                                      *node.mempool, *node.warnings,
                                      PeerManager::Options{
-                                         .reconcile_txs = true,
                                          .deterministic_rng = true,
                                      });
 

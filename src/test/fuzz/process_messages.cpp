@@ -78,7 +78,6 @@ FUZZ_TARGET(process_messages, .init = initialize_process_messages)
                                      /*banman=*/nullptr, chainman,
                                      *node.mempool, *node.warnings,
                                      PeerManager::Options{
-                                         .reconcile_txs = true,
                                          .deterministic_rng = true,
                                      });
     connman.SetMsgProc(node.peerman.get());

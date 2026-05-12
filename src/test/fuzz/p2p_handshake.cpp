@@ -55,7 +55,6 @@ FUZZ_TARGET(p2p_handshake, .init = ::initialize)
                                      /*banman=*/nullptr, chainman,
                                      *g_setup->m_node.mempool, warnings,
                                      PeerManager::Options{
-                                         .reconcile_txs = true,
                                          .deterministic_rng = true,
                                      });
     connman.SetMsgProc(peerman.get());

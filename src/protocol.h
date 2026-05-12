@@ -258,12 +258,6 @@ inline constexpr const char* CFCHECKPT{"cfcheckpt"};
  * @since protocol version 70016 as described by BIP 339.
  */
 inline constexpr const char* WTXIDRELAY{"wtxidrelay"};
-/**
- * Contains a 4-byte version number and an 8-byte salt.
- * The salt is used to compute short txids needed for efficient
- * txreconciliation, as described by BIP 330.
- */
-inline constexpr const char* SENDTXRCNCL{"sendtxrcncl"};
 }; // namespace NetMsgType
 
 /** All known message types (see above). Keep this in the same order as the list of messages above. */
@@ -302,7 +296,6 @@ inline const std::array ALL_NET_MESSAGE_TYPES{std::to_array<std::string>({
     NetMsgType::GETCFCHECKPT,
     NetMsgType::CFCHECKPT,
     NetMsgType::WTXIDRELAY,
-    NetMsgType::SENDTXRCNCL,
 })};
 
 /** nServices flags */

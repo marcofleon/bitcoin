@@ -1905,28 +1905,6 @@ class msg_cfcheckpt:
         return "msg_cfcheckpt(filter_type={:#x}, stop_hash={:x})".format(
             self.filter_type, self.stop_hash)
 
-class msg_sendtxrcncl:
-    __slots__ = ("version", "salt")
-    msgtype = b"sendtxrcncl"
-
-    def __init__(self):
-        self.version = 0
-        self.salt = 0
-
-    def deserialize(self, f):
-        self.version = int.from_bytes(f.read(4), "little")
-        self.salt = int.from_bytes(f.read(8), "little")
-
-    def serialize(self):
-        r = b""
-        r += self.version.to_bytes(4, "little")
-        r += self.salt.to_bytes(8, "little")
-        return r
-
-    def __repr__(self):
-        return "msg_sendtxrcncl(version=%lu, salt=%lu)" %\
-            (self.version, self.salt)
-
 class TestFrameworkScript(unittest.TestCase):
     def test_addrv2_encode_decode(self):
         def check_addrv2(ip, net):

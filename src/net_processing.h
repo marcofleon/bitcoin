@@ -36,8 +36,6 @@ namespace node {
 class Warnings;
 } // namespace node
 
-/** Whether transaction reconciliation protocol should be enabled by default. */
-static constexpr bool DEFAULT_TXRECONCILIATION_ENABLE{false};
 /** Default number of non-mempool transactions to keep around for block reconstruction. Includes
     orphan, replaced, and rejected transactions. */
 static const uint32_t DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN{100};
@@ -79,8 +77,6 @@ public:
     struct Options {
         //! Whether this node is running in -blocksonly mode
         bool ignore_incoming_txs{DEFAULT_BLOCKSONLY};
-        //! Whether transaction reconciliation protocol is enabled
-        bool reconcile_txs{DEFAULT_TXRECONCILIATION_ENABLE};
         //! Number of non-mempool transactions to keep around for block reconstruction. Includes
         //! orphan, replaced, and rejected transactions.
         uint32_t max_extra_txs{DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN};
