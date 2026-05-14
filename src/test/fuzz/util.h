@@ -28,17 +28,46 @@
 #include <cstdint>
 #include <cstdio>
 #include <optional>
+#include <source_location>
 #include <string>
 #include <vector>
 
 class PeerManager;
 
+namespace fuzz_detail {
+// Computes the deterministic, campaign-stable subset of enabled branch
+// indices for a single CallOneOf invocation. Driven by the
+// FUZZ_CALL_ONE_OF_SEED env var (unset = all branches enabled, behavior
+// identical to the pre-feature implementation). Same seed + same call site
+// always yields the same subset; the subset is guaranteed non-empty.
+std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t call_size);
+
+// Wrapper that lets CallOneOf capture std::source_location at the call site
+// via implicit conversion, so every existing CallOneOf(provider, lambdas...)
+// call site continues to work unchanged.
+struct CallOneOfCtx {
+    FuzzedDataProvider& provider;
+    std::source_location loc;
+    CallOneOfCtx(FuzzedDataProvider& p,
+                 std::source_location l = std::source_location::current())
+        : provider{p}, loc{l} {}
+};
+} // namespace fuzz_detail
+
 template <typename... Callables>
-size_t CallOneOf(FuzzedDataProvider& fuzzed_data_provider, Callables... callables)
+size_t CallOneOf(fuzz_detail::CallOneOfCtx ctx, Callables... callables)
 {
     constexpr size_t call_size{sizeof...(callables)};
     static_assert(call_size >= 1);
-    const size_t call_index{fuzzed_data_provider.ConsumeIntegralInRange<size_t>(0, call_size - 1)};
+
+    // Each call site of CallOneOf is a unique template instantiation (every
+    // lambda has a distinct type), so this static is per-call-site and gets
+    // initialized once on first hit during the fuzz campaign.
+    static const std::vector<size_t> enabled{
+        fuzz_detail::CallOneOfEnabledBranches(ctx.loc, call_size)};
+
+    const size_t pick{ctx.provider.ConsumeIntegralInRange<size_t>(0, enabled.size() - 1)};
+    const size_t call_index{enabled[pick]};
 
     size_t i{0};
     ((i++ == call_index ? callables() : void()), ...);

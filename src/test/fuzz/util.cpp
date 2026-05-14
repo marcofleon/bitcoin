@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <consensus/amount.h>
+#include <crypto/siphash.h>
 #include <pubkey.h>
 #include <test/fuzz/util.h>
 #include <test/util/script.h>
@@ -11,7 +12,86 @@
 #include <util/rbf.h>
 #include <util/time.h>
 
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
+#include <numeric>
+#include <span>
+#include <string_view>
+
+namespace fuzz_detail {
+namespace {
+struct CallOneOfConfig {
+    bool enabled{false};
+    uint64_t seed{0};
+    bool verbose{false};
+};
+
+// Read the FUZZ_CALL_ONE_OF_* env vars exactly once per process.
+const CallOneOfConfig& Config()
+{
+    static const CallOneOfConfig cfg{[] {
+        CallOneOfConfig c;
+        if (const char* s{std::getenv("FUZZ_CALL_ONE_OF_SEED")}) {
+            c.seed = std::strtoull(s, nullptr, 0);
+            c.enabled = true;
+        }
+        if (std::getenv("FUZZ_CALL_ONE_OF_VERBOSE")) c.verbose = true;
+        return c;
+    }()};
+    return cfg;
+}
+} // namespace
+
+std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t call_size)
+{
+    std::vector<size_t> all(call_size);
+    std::iota(all.begin(), all.end(), size_t{0});
+
+    const auto& cfg{Config()};
+    // Feature off, only one branch, or too many branches to fit in a u64
+    // bitmask: keep every branch enabled (byte-identical to old behavior).
+    if (!cfg.enabled || call_size <= 1 || call_size >= 64) return all;
+
+    // Keyed SipHash of (line, file) gives a well-distributed u64 unique to
+    // this call site for any given seed. Write the line first (8 bytes, so
+    // the multiple-of-8 precondition for Write(uint64) is trivially met),
+    // then the file path bytes.
+    CSipHasher hasher{cfg.seed, 0};
+    hasher.Write(uint64_t{loc.line()});
+    const std::string_view file{loc.file_name() ? loc.file_name() : ""};
+    hasher.Write({reinterpret_cast<const unsigned char*>(file.data()), file.size()});
+    const uint64_t h{hasher.Finalize()};
+
+    // Pick a uniformly-random non-empty subset of {0, ..., call_size-1}.
+    // There are 2^N - 1 such subsets; map the hash into [1, 2^N - 1].
+    const uint64_t total_subsets{(uint64_t{1} << call_size) - uint64_t{1}};
+    const uint64_t mask{(h % total_subsets) + uint64_t{1}};
+
+    std::vector<size_t> enabled;
+    enabled.reserve(call_size);
+    for (size_t i{0}; i < call_size; ++i) {
+        if (mask & (uint64_t{1} << i)) enabled.push_back(i);
+    }
+
+    if (cfg.verbose) {
+        std::fprintf(stderr, "[FUZZ_CALL_ONE_OF] %s:%u (%zu branches) enabled={",
+                     loc.file_name(), loc.line(), call_size);
+        for (size_t i{0}; i < enabled.size(); ++i) {
+            std::fprintf(stderr, "%s%zu", i ? ", " : "", enabled[i]);
+        }
+        std::fprintf(stderr, "} disabled={");
+        bool first{true};
+        for (size_t i{0}; i < call_size; ++i) {
+            if (mask & (uint64_t{1} << i)) continue;
+            std::fprintf(stderr, "%s%zu", first ? "" : ", ", i);
+            first = false;
+        }
+        std::fprintf(stderr, "}\n");
+    }
+    return enabled;
+}
+} // namespace fuzz_detail
 
 std::vector<uint8_t> ConstructPubKeyBytes(FuzzedDataProvider& fuzzed_data_provider, std::span<const uint8_t> byte_data, const bool compressed) noexcept
 {
