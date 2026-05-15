@@ -64,6 +64,11 @@ SEED_START="${SEED_START:-$(od -An -N4 -tu4 /dev/urandom | tr -d ' \n')}"
 # cumulative effect there, so sweeping seeds would just toggle a single
 # choice per input.
 DEFAULT_HARNESSES=(
+    # src/test/fuzz/txgraph.cpp (manual-dispatch refactor: parallel mask)
+    txgraph
+    # src/test/fuzz/cluster_linearize.cpp clusterlin_depgraph_sim
+    # (manual-dispatch refactor: parallel mask)
+    clusterlin_depgraph_sim
     # src/test/fuzz/txorphan.cpp
     txorphan
     txorphan_protected

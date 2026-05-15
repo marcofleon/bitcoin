@@ -42,6 +42,15 @@ namespace fuzz_detail {
 // always yields the same subset; the subset is guaranteed non-empty.
 std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t call_size);
 
+// Same masking semantics as CallOneOfEnabledBranches, but returned as a
+// uint64_t bitmask (bit i is set iff branch i is enabled). Intended for
+// dispatcher sites that don't use CallOneOf - e.g. switch / decrementing-
+// command idioms - so the same swarm-style feature-omission masking can be
+// applied there. total_branches must be in [1, 63]; for callers outside that
+// range the returned mask is all-ones (no masking applied). The result is
+// stable for the lifetime of the process for any given (seed, file, line).
+uint64_t EnabledBranchMask(std::source_location loc, size_t total_branches);
+
 // Wrapper that lets CallOneOf capture std::source_location at the call site
 // via implicit conversion, so every existing CallOneOf(provider, lambdas...)
 // call site continues to work unchanged.

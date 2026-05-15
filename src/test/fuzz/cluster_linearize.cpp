@@ -8,9 +8,12 @@
 #include <streams.h>
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
+#include <test/fuzz/util.h>
 #include <test/util/cluster_linearize.h>
 #include <util/bitset.h>
 #include <util/feefrac.h>
+
+#include <source_location>
 
 #include <algorithm>
 #include <cstdint>
@@ -485,11 +488,24 @@ FUZZ_TARGET(clusterlin_depgraph_sim)
 
     auto last_compaction_pos{real.PositionRange()};
 
+    // Swarm-style feature-omission mask: each FUZZ_CALL_ONE_OF_SEED picks a
+    // proper non-empty subset of the 4 dispatcher branches below, and that
+    // subset is held constant for the whole campaign. Disabled branches
+    // short-circuit at the leftmost term, so they behave exactly like an
+    // always-false applicability guard.
+    static const uint64_t kEnabledBranches{
+        fuzz_detail::EnabledBranchMask(std::source_location::current(), 4)};
+
     LIMITED_WHILE(provider.remaining_bytes() > 0, 1000) {
         int command = provider.ConsumeIntegral<uint8_t>() % 4;
         while (true) {
             // Iterate decreasing command until an applicable branch is found.
-            if (num_tx_sim < TestBitSet::Size() && command-- == 0) {
+            // The command_before guard breaks out of the loop if no
+            // enabled+applicable branch was hit during the pass - otherwise a
+            // mask that disables every currently-applicable branch (e.g. all
+            // mutators while the graph is empty) would spin forever.
+            const int command_before{command};
+            if ((kEnabledBranches & (uint64_t{1} << 0)) && num_tx_sim < TestBitSet::Size() && command-- == 0) {
                 // AddTransaction.
                 auto fee = provider.ConsumeIntegralInRange<int64_t>(-0x8000000000000, 0x7ffffffffffff);
                 auto size = provider.ConsumeIntegralInRange<int32_t>(1, 0x3fffff);
@@ -508,7 +524,7 @@ FUZZ_TARGET(clusterlin_depgraph_sim)
                 sim[idx] = {feerate, TestBitSet::Singleton(idx)};
                 ++num_tx_sim;
                 break;
-            } else if (num_tx_sim > 0 && command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 1)) && num_tx_sim > 0 && command-- == 0) {
                 // AddDependencies.
                 DepGraphIndex child = idx_fn();
                 auto parents = subset_fn();
@@ -517,7 +533,7 @@ FUZZ_TARGET(clusterlin_depgraph_sim)
                 // Apply to sim.
                 sim[child]->second |= parents;
                 break;
-            } else if (num_tx_sim > 0 && command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 2)) && num_tx_sim > 0 && command-- == 0) {
                 // Remove transactions.
                 auto del = set_fn();
                 // Propagate all ancestry information before deleting anything in the simulation (as
@@ -539,7 +555,7 @@ FUZZ_TARGET(clusterlin_depgraph_sim)
                     }
                 }
                 break;
-            } else if (command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 3)) && command-- == 0) {
                 // Compact.
                 const size_t mem_before{real.DynamicMemoryUsage()};
                 real.Compact();
@@ -548,6 +564,7 @@ FUZZ_TARGET(clusterlin_depgraph_sim)
                 last_compaction_pos = real.PositionRange();
                 break;
             }
+            if (command == command_before) break;
         }
     }
 

@@ -51,15 +51,20 @@ const CallOneOfConfig& Config()
 }
 } // namespace
 
-std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t call_size)
+uint64_t EnabledBranchMask(std::source_location loc, size_t total_branches)
 {
-    std::vector<size_t> all(call_size);
-    std::iota(all.begin(), all.end(), size_t{0});
+    // Sentinel for "all branches enabled". Cannot represent N >= 64 in a
+    // single u64, so callers with N >= 64 get the full-on mask (truncated)
+    // and effectively no masking.
+    const uint64_t full_mask{total_branches >= 64
+                                 ? ~uint64_t{0}
+                                 : (uint64_t{1} << total_branches) - uint64_t{1}};
 
     const auto& cfg{Config()};
     // Feature off, only one branch, or too many branches to fit in a u64
-    // bitmask: keep every branch enabled (byte-identical to old behavior).
-    if (!cfg.enabled || call_size <= 1 || call_size >= 64) return all;
+    // bitmask: keep every branch enabled (byte-identical to pre-feature
+    // behavior).
+    if (!cfg.enabled || total_branches <= 1 || total_branches >= 64) return full_mask;
 
     // Keyed SipHash of (line, file) gives a well-distributed u64 unique to
     // this call site for any given seed. Write the line first (8 bytes, so
@@ -71,13 +76,12 @@ std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t ca
     hasher.Write({reinterpret_cast<const unsigned char*>(file.data()), file.size()});
     const uint64_t h{hasher.Finalize()};
 
-    const uint64_t full_mask{(uint64_t{1} << call_size) - uint64_t{1}};
     uint64_t mask;
     if (!cfg.bias_set) {
         // Default: uniformly-random proper non-empty subset of
-        // {0, ..., call_size-1}, i.e. excluding both the empty set (no branch
-        // to call) and the full set (no diversity vs. unmodified CallOneOf).
-        // 2^N - 2 such subsets; map the hash into [1, 2^N - 2].
+        // {0, ..., total_branches-1}, i.e. excluding both the empty set (no
+        // branch to call) and the full set (no diversity vs. unmasked
+        // behavior). 2^N - 2 such subsets; map the hash into [1, 2^N - 2].
         mask = (h % (full_mask - uint64_t{1})) + uint64_t{1};
     } else {
         // Independent biased coin-toss per branch: each branch is included
@@ -86,7 +90,7 @@ std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t ca
         const uint64_t threshold{cfg.bias >= 1.0 ? (uint64_t{1} << 32)
                                                  : uint64_t(cfg.bias * 4294967296.0)};
         mask = 0;
-        for (size_t i{0}; i < call_size; ++i) {
+        for (size_t i{0}; i < total_branches; ++i) {
             // Order matters: CSipHasher::Write(uint64_t) requires the running
             // byte count to be a multiple of 8, so the two uint64 writes go
             // back-to-back before the variable-length file bytes. The +1
@@ -102,35 +106,43 @@ std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t ca
         }
         // Forced-fix to keep mask a proper non-empty subset. The bit to flip
         // is chosen deterministically from the base hash.
-        if (mask == 0) mask |= uint64_t{1} << (h % call_size);
-        else if (mask == full_mask) mask &= ~(uint64_t{1} << (h % call_size));
-    }
-
-    std::vector<size_t> enabled;
-    enabled.reserve(call_size);
-    for (size_t i{0}; i < call_size; ++i) {
-        if (mask & (uint64_t{1} << i)) enabled.push_back(i);
+        if (mask == 0) mask |= uint64_t{1} << (h % total_branches);
+        else if (mask == full_mask) mask &= ~(uint64_t{1} << (h % total_branches));
     }
 
     if (cfg.verbose) {
         if (cfg.bias_set) {
             std::fprintf(stderr, "[FUZZ_CALL_ONE_OF] %s:%u (%zu branches, bias=%.3f) enabled={",
-                         loc.file_name(), loc.line(), call_size, cfg.bias);
+                         loc.file_name(), loc.line(), total_branches, cfg.bias);
         } else {
             std::fprintf(stderr, "[FUZZ_CALL_ONE_OF] %s:%u (%zu branches) enabled={",
-                         loc.file_name(), loc.line(), call_size);
+                         loc.file_name(), loc.line(), total_branches);
         }
-        for (size_t i{0}; i < enabled.size(); ++i) {
-            std::fprintf(stderr, "%s%zu", i ? ", " : "", enabled[i]);
+        bool first{true};
+        for (size_t i{0}; i < total_branches; ++i) {
+            if (!(mask & (uint64_t{1} << i))) continue;
+            std::fprintf(stderr, "%s%zu", first ? "" : ", ", i);
+            first = false;
         }
         std::fprintf(stderr, "} disabled={");
-        bool first{true};
-        for (size_t i{0}; i < call_size; ++i) {
+        first = true;
+        for (size_t i{0}; i < total_branches; ++i) {
             if (mask & (uint64_t{1} << i)) continue;
             std::fprintf(stderr, "%s%zu", first ? "" : ", ", i);
             first = false;
         }
         std::fprintf(stderr, "}\n");
+    }
+    return mask;
+}
+
+std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t call_size)
+{
+    const uint64_t mask{EnabledBranchMask(loc, call_size)};
+    std::vector<size_t> enabled;
+    enabled.reserve(call_size);
+    for (size_t i{0}; i < call_size; ++i) {
+        if (mask & (uint64_t{1} << i)) enabled.push_back(i);
     }
     return enabled;
 }
