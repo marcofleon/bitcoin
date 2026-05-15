@@ -25,6 +25,8 @@ struct CallOneOfConfig {
     bool enabled{false};
     uint64_t seed{0};
     bool verbose{false};
+    bool bias_set{false};
+    double bias{0.5};
 };
 
 // Read the FUZZ_CALL_ONE_OF_* env vars exactly once per process.
@@ -37,6 +39,12 @@ const CallOneOfConfig& Config()
             c.enabled = true;
         }
         if (std::getenv("FUZZ_CALL_ONE_OF_VERBOSE")) c.verbose = true;
+        if (const char* s{std::getenv("FUZZ_CALL_ONE_OF_BIAS")}) {
+            c.bias = std::strtod(s, nullptr);
+            if (c.bias < 0.0) c.bias = 0.0;
+            if (c.bias > 1.0) c.bias = 1.0;
+            c.bias_set = true;
+        }
         return c;
     }()};
     return cfg;
@@ -63,10 +71,40 @@ std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t ca
     hasher.Write({reinterpret_cast<const unsigned char*>(file.data()), file.size()});
     const uint64_t h{hasher.Finalize()};
 
-    // Pick a uniformly-random non-empty subset of {0, ..., call_size-1}.
-    // There are 2^N - 1 such subsets; map the hash into [1, 2^N - 1].
-    const uint64_t total_subsets{(uint64_t{1} << call_size) - uint64_t{1}};
-    const uint64_t mask{(h % total_subsets) + uint64_t{1}};
+    const uint64_t full_mask{(uint64_t{1} << call_size) - uint64_t{1}};
+    uint64_t mask;
+    if (!cfg.bias_set) {
+        // Default: uniformly-random proper non-empty subset of
+        // {0, ..., call_size-1}, i.e. excluding both the empty set (no branch
+        // to call) and the full set (no diversity vs. unmodified CallOneOf).
+        // 2^N - 2 such subsets; map the hash into [1, 2^N - 2].
+        mask = (h % (full_mask - uint64_t{1})) + uint64_t{1};
+    } else {
+        // Independent biased coin-toss per branch: each branch is included
+        // with probability cfg.bias. Derive a per-branch 32-bit hash by
+        // re-keying SipHash with the branch index and compare to a threshold.
+        const uint64_t threshold{cfg.bias >= 1.0 ? (uint64_t{1} << 32)
+                                                 : uint64_t(cfg.bias * 4294967296.0)};
+        mask = 0;
+        for (size_t i{0}; i < call_size; ++i) {
+            // Order matters: CSipHasher::Write(uint64_t) requires the running
+            // byte count to be a multiple of 8, so the two uint64 writes go
+            // back-to-back before the variable-length file bytes. The +1
+            // ensures the branch-0 sub-hash differs from the base hash above
+            // (which writes only the line before the file bytes).
+            CSipHasher hi{cfg.seed, 0};
+            hi.Write(uint64_t{loc.line()});
+            hi.Write(uint64_t{i} + uint64_t{1});
+            hi.Write({reinterpret_cast<const unsigned char*>(file.data()), file.size()});
+            if (uint64_t(uint32_t(hi.Finalize())) < threshold) {
+                mask |= uint64_t{1} << i;
+            }
+        }
+        // Forced-fix to keep mask a proper non-empty subset. The bit to flip
+        // is chosen deterministically from the base hash.
+        if (mask == 0) mask |= uint64_t{1} << (h % call_size);
+        else if (mask == full_mask) mask &= ~(uint64_t{1} << (h % call_size));
+    }
 
     std::vector<size_t> enabled;
     enabled.reserve(call_size);
@@ -75,8 +113,13 @@ std::vector<size_t> CallOneOfEnabledBranches(std::source_location loc, size_t ca
     }
 
     if (cfg.verbose) {
-        std::fprintf(stderr, "[FUZZ_CALL_ONE_OF] %s:%u (%zu branches) enabled={",
-                     loc.file_name(), loc.line(), call_size);
+        if (cfg.bias_set) {
+            std::fprintf(stderr, "[FUZZ_CALL_ONE_OF] %s:%u (%zu branches, bias=%.3f) enabled={",
+                         loc.file_name(), loc.line(), call_size, cfg.bias);
+        } else {
+            std::fprintf(stderr, "[FUZZ_CALL_ONE_OF] %s:%u (%zu branches) enabled={",
+                         loc.file_name(), loc.line(), call_size);
+        }
         for (size_t i{0}; i < enabled.size(); ++i) {
             std::fprintf(stderr, "%s%zu", i ? ", " : "", enabled[i]);
         }

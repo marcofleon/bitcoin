@@ -21,9 +21,16 @@
 #                 Default: $(nproc) or 4
 #
 # Environment overrides:
-#   FUZZ_BIN     Path to the fuzz binary. Default: ./build/bin/fuzz
-#   OUT_DIR      Where to keep crash artifacts. Default: ./calloneof_sweep_runs
-#   HARNESSES    Space-separated harness names. Overrides the built-in list.
+#   FUZZ_BIN                Path to the fuzz binary. Default: ./build/bin/fuzz
+#   OUT_DIR                 Where to keep crash artifacts. Default: ./calloneof_sweep_runs
+#   HARNESSES               Space-separated harness names. Overrides the built-in list.
+#   SEED_START              First FUZZ_CALL_ONE_OF_SEED to try; seeds used are
+#                           SEED_START .. SEED_START+NUM_SEEDS-1. Default: a fresh
+#                           random 32-bit value per run, so consecutive sweeps hit
+#                           different slices of the mask space.
+#   FUZZ_CALL_ONE_OF_BIAS   Forwarded to every campaign. Unset = uniform default
+#                           (proper non-empty subsets); set to e.g. 0.3 or 0.7
+#                           to bias each branch's inclusion probability.
 #
 # Notes:
 # - All FUZZ_CALL_ONE_OF_VERBOSE mask logs are kept on success too (just the
@@ -43,6 +50,11 @@ PARALLEL="${3:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
 
 FUZZ_BIN="${FUZZ_BIN:-./build/bin/fuzz}"
 OUT_DIR="${OUT_DIR:-./calloneof_sweep_runs}"
+
+# A run-wide random offset so the seeds we sweep aren't always the same
+# 0..NUM_SEEDS-1 range. Override with `SEED_START=N ./fuzz_calloneof_sweep.sh`
+# to reproduce a previous sweep's exact mask configurations.
+SEED_START="${SEED_START:-$(od -An -N4 -tu4 /dev/urandom | tr -d ' \n')}"
 
 # Verified mapping: every FUZZ_TARGET where the CallOneOf is exercised
 # repeatedly per fuzz iteration (i.e. inside a LIMITED_WHILE in the harness
@@ -143,7 +155,8 @@ TOTAL=$(( ${#HARNESSES[@]} * NUM_SEEDS ))
 echo "fuzz binary : $FUZZ_BIN"
 echo "out dir     : $OUT_DIR"
 echo "harnesses   : ${#HARNESSES[@]}"
-echo "seeds/each  : $NUM_SEEDS  (0 .. $((NUM_SEEDS-1)))"
+echo "seeds/each  : $NUM_SEEDS  ($SEED_START .. $((SEED_START + NUM_SEEDS - 1)))"
+echo "bias        : ${FUZZ_CALL_ONE_OF_BIAS:-(unset; default 0.5 uniform)}"
 echo "duration    : ${DURATION}s per campaign"
 echo "parallel    : $PARALLEL concurrent campaigns"
 echo "total       : $TOTAL campaigns"
@@ -181,6 +194,7 @@ run_one_campaign() {
         {
             echo "harness=$harness"
             echo "FUZZ_CALL_ONE_OF_SEED=$seed"
+            echo "FUZZ_CALL_ONE_OF_BIAS=${FUZZ_CALL_ONE_OF_BIAS:-(unset; default 0.5 uniform)}"
             echo "duration=${DURATION}s"
             echo "fuzz_bin=$FUZZ_BIN"
             echo "---- CallOneOf mask log ----"
@@ -209,7 +223,7 @@ trap cleanup INT
 # whitespace-separated tokens at a time and passes them to the bash worker.
 {
     for h in "${HARNESSES[@]}"; do
-        for s in $(seq 0 $((NUM_SEEDS - 1))); do
+        for s in $(seq "$SEED_START" $((SEED_START + NUM_SEEDS - 1))); do
             printf '%s %s\n' "$h" "$s"
         done
     done
