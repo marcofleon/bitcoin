@@ -566,10 +566,18 @@ FUZZ_TARGET(txorphanage_sim)
     // 5. Run through a scenario of mutators on both real and simulated orphanage.
     //
 
+    // Swarm-style feature-omission mask: each FUZZ_CALL_ONE_OF_SEED picks a
+    // proper non-empty subset of the 7 dispatcher branches below, held
+    // constant for the whole campaign. Disabled branches behave like an
+    // always-false applicability guard.
+    static const uint64_t kEnabledBranches{
+        fuzz_detail::EnabledBranchMask(std::source_location::current(), 7)};
+
     LIMITED_WHILE(provider.remaining_bytes() > 0, 200) {
         int command = provider.ConsumeIntegralInRange<uint8_t>(0, 15);
         while (true) {
-            if (sim_announcements.size() < MAX_ANN && command-- == 0) {
+            const int command_before{command};
+            if ((kEnabledBranches & (uint64_t{1} << 0)) && sim_announcements.size() < MAX_ANN && command-- == 0) {
                 // AddTx
                 auto [tx, peer] = read_tx_peer_fn();
                 bool added = real->AddTx(txn[tx], peer);
@@ -579,7 +587,7 @@ FUZZ_TARGET(txorphanage_sim)
                     sim_announcements.emplace_back(tx, peer, false);
                 }
                 break;
-            } else if (sim_announcements.size() < MAX_ANN && command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 1)) && sim_announcements.size() < MAX_ANN && command-- == 0) {
                 // AddAnnouncer
                 auto [tx, peer] = read_tx_peer_fn();
                 bool added = real->AddAnnouncer(txn[tx]->GetWitnessHash(), peer);
@@ -590,7 +598,7 @@ FUZZ_TARGET(txorphanage_sim)
                     sim_announcements.emplace_back(tx, peer, false);
                 }
                 break;
-            } else if (command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 2)) && command-- == 0) {
                 // EraseTx
                 auto tx = read_tx_fn();
                 bool erased = real->EraseTx(txn[tx]->GetWitnessHash());
@@ -598,13 +606,13 @@ FUZZ_TARGET(txorphanage_sim)
                 assert(erased == sim_have);
                 std::erase_if(sim_announcements, [&](auto& ann) { return ann.tx == tx; });
                 break;
-           } else if (command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 3)) && command-- == 0) {
                 // EraseForPeer
                 auto peer = read_peer_fn();
                 real->EraseForPeer(peer);
                 std::erase_if(sim_announcements, [&](auto& ann) { return ann.announcer == peer; });
                 break;
-            } else if (command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 4)) && command-- == 0) {
                 // EraseForBlock
                 auto pattern = provider.ConsumeIntegralInRange<uint64_t>(0, (uint64_t{1} << NUM_TX) - 1);
                 CBlock block;
@@ -626,7 +634,7 @@ FUZZ_TARGET(txorphanage_sim)
                     return false;
                 });
                 break;
-            } else if (command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 5)) && command-- == 0) {
                 // AddChildrenToWorkSet
                 auto tx = read_tx_fn();
                 FastRandomContext rand_ctx(rng.rand256());
@@ -666,7 +674,7 @@ FUZZ_TARGET(txorphanage_sim)
                 // due to a previous AddChildrenToWorkSet.
                 assert(child_wtxids.empty());
                 break;
-            } else if (command-- == 0) {
+            } else if ((kEnabledBranches & (uint64_t{1} << 6)) && command-- == 0) {
                 // GetTxToReconsider.
                 auto peer = read_peer_fn();
                 auto result = real->GetTxToReconsider(peer);
@@ -686,6 +694,7 @@ FUZZ_TARGET(txorphanage_sim)
                 }
                 break;
             }
+            if (command == command_before) break;
         }
         // Always trim after each command if needed.
         const auto max_ann = max_global_latency_score / std::max<unsigned>(1, count_peers_fn());

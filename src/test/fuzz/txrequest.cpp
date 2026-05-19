@@ -7,6 +7,7 @@
 #include <crypto/siphash.h>
 #include <primitives/transaction.h>
 #include <test/fuzz/fuzz.h>
+#include <test/fuzz/util.h>
 #include <txrequest.h>
 
 #include <bitset>
@@ -330,10 +331,21 @@ FUZZ_TARGET(txrequest)
     // Tester object (which encapsulates a TxRequestTracker).
     Tester tester;
 
+    // Swarm-style feature-omission mask: each FUZZ_CALL_ONE_OF_SEED picks a
+    // proper non-empty subset of the 11 instruction types below, held constant
+    // for the whole campaign.
+    static const uint64_t kEnabledBranches{
+        fuzz_detail::EnabledBranchMask(std::source_location::current(), 11)};
+
     // Decode the input as a sequence of instructions with parameters
     auto it = buffer.begin();
     while (it != buffer.end()) {
         int cmd = *(it++) % 11;
+        if ((kEnabledBranches & (uint64_t{1} << cmd)) == 0) {
+            // Treat disabled instruction types as one-byte no-ops; the
+            // remaining bytes can still be decoded as later instructions.
+            continue;
+        }
         int peer, txidnum, delaynum;
         switch (cmd) {
         case 0: // Make time jump to the next event (m_time of CANDIDATE or REQUESTED)

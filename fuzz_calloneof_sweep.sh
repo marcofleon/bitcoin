@@ -56,13 +56,13 @@ OUT_DIR="${OUT_DIR:-./calloneof_sweep_runs}"
 # to reproduce a previous sweep's exact mask configurations.
 SEED_START="${SEED_START:-$(od -An -N4 -tu4 /dev/urandom | tr -d ' \n')}"
 
-# Verified mapping: every FUZZ_TARGET where the CallOneOf is exercised
-# repeatedly per fuzz iteration (i.e. inside a LIMITED_WHILE in the harness
-# itself, or in a helper called from such a loop). Harnesses where the
-# CallOneOf fires at most once per iteration (str_printf, muhash, float,
-# merkleblock) are intentionally omitted - the masking feature has no
-# cumulative effect there, so sweeping seeds would just toggle a single
-# choice per input.
+# Verified mapping: every FUZZ_TARGET where a CallOneOf/EnabledBranchMask
+# dispatcher is exercised repeatedly per fuzz iteration (i.e. inside a
+# LIMITED_WHILE in the harness itself, or in a helper called from such a
+# loop). Harnesses where the dispatcher fires at most once per iteration
+# (str_printf, muhash, float, merkleblock) are intentionally omitted - the
+# masking feature has no cumulative effect there, so sweeping seeds would
+# just toggle a single choice per input.
 DEFAULT_HARNESSES=(
     # src/test/fuzz/txgraph.cpp (manual-dispatch refactor: parallel mask)
     txgraph
@@ -72,6 +72,12 @@ DEFAULT_HARNESSES=(
     # src/test/fuzz/txorphan.cpp
     txorphan
     txorphan_protected
+    # src/test/fuzz/txorphan.cpp txorphanage_sim
+    # (manual-dispatch refactor: branch mask)
+    txorphanage_sim
+    # src/test/fuzz/txrequest.cpp
+    # (manual-dispatch refactor: branch mask)
+    txrequest
     # src/test/fuzz/p2p_transport_serialization.cpp
     p2p_transport_serialization
     # src/test/fuzz/p2p_headers_presync.cpp
