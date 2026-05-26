@@ -13,6 +13,8 @@
 #include <util/feefrac.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <iterator>
 #include <map>
@@ -449,8 +451,31 @@ FUZZ_TARGET(txgraph)
     // every mutator masked while the graph is empty), avoiding an infinite
     // spin in pathological mask configurations.
     static constexpr size_t kNumBranches{29};
+#line 452
     static const uint64_t kEnabledBranches{
         fuzz_detail::EnabledBranchMask(std::source_location::current(), kNumBranches)};
+#line 456
+
+    static const bool trace_steps{std::getenv("TXGRAPH_TRACE_STEPS") != nullptr};
+    uint64_t trace_step{0};
+    auto cache_state = [](const std::optional<bool>& cache) {
+        return cache.has_value() ? (*cache ? "true" : "false") : "null";
+    };
+    auto trace = [&](const char* op, TxGraph::Level selected_level) {
+        if (!trace_steps) return;
+        const auto& main_now{sims.front()};
+        const auto& top_now{sims.back()};
+        std::fprintf(stderr,
+                     "[TXGRAPH_STEP] #%llu op=%s sel=%s staging=%d "
+                     "main(tx=%u cache=%s removed=%zu) "
+                     "top(tx=%u cache=%s removed=%zu) builders=%zu\n",
+                     static_cast<unsigned long long>(trace_step++), op,
+                     selected_level == TxGraph::Level::MAIN ? "MAIN" : "TOP",
+                     int(sims.size() > 1),
+                     unsigned(main_now.GetTransactionCount()), cache_state(main_now.oversized), main_now.removed.size(),
+                     unsigned(top_now.GetTransactionCount()), cache_state(top_now.oversized), top_now.removed.size(),
+                     block_builders.size());
+    };
 
     LIMITED_WHILE(provider.remaining_bytes() > 0, 200) {
         // Read a one-byte command.
@@ -503,6 +528,7 @@ FUZZ_TARGET(txgraph)
                 assigned_txids.insert(txid);
                 // Create the transaction in the simulation and the real graph.
                 top_sim.AddTransaction(*real, feerate, txid);
+                trace("AddTransaction", level_select);
                 break;
             } else if ((kEnabledBranches & (uint64_t{1} << 1)) && (block_builders.empty() || sims.size() > 1) && top_sim.GetTransactionCount() + top_sim.removed.size() > 1 && command-- == 0) {
                 // AddDependency.
@@ -518,6 +544,7 @@ FUZZ_TARGET(txgraph)
                 top_sim.AddDependency(par, chl);
                 top_sim.real_is_optimal = false;
                 real->AddDependency(*par, *chl);
+                trace("AddDependency", level_select);
                 break;
             } else if ((kEnabledBranches & (uint64_t{1} << 2)) && (block_builders.empty() || sims.size() > 1) && top_sim.removed.size() < 100 && command-- == 0) {
                 // RemoveTransaction. Either all its ancestors or all its descendants are also
@@ -570,6 +597,7 @@ FUZZ_TARGET(txgraph)
                         sims[level].DestroyTransaction(ptr, level == sims.size() - 1);
                     }
                 }
+                trace("DestroyRefAny", level_select);
                 break;
             } else if ((kEnabledBranches & (uint64_t{1} << 5)) && block_builders.empty() && command-- == 0) {
                 // SetTransactionFee.
@@ -702,9 +730,11 @@ FUZZ_TARGET(txgraph)
                 break;
             } else if ((kEnabledBranches & (uint64_t{1} << 15)) && sims.size() < 2 && command-- == 0) {
                 // StartStaging.
+                trace("StartStaging(before)", level_select);
                 sims.emplace_back(sims.back());
                 sims.back().modified = SimTxGraph::SetType{};
                 real->StartStaging();
+                trace("StartStaging(after)", level_select);
                 break;
             } else if ((kEnabledBranches & (uint64_t{1} << 16)) && block_builders.empty() && sims.size() > 1 && command-- == 0) {
                 // CommitStaging.
@@ -771,6 +801,7 @@ FUZZ_TARGET(txgraph)
                 // Compare the number of deduplicated representatives with the value returned by
                 // the real function.
                 assert(result == sim_reps.Count());
+                trace("CountDistinctClusters", level_select);
                 break;
             } else if ((kEnabledBranches & (uint64_t{1} << 20)) && command-- == 0) {
                 // DoWork.
@@ -831,6 +862,7 @@ FUZZ_TARGET(txgraph)
             } else if ((kEnabledBranches & (uint64_t{1} << 22)) && block_builders.size() < 4 && !main_sim.IsOversized() && command-- == 0) {
                 // GetBlockBuilder.
                 block_builders.emplace_back(real->GetBlockBuilder());
+                trace("GetBlockBuilder", level_select);
                 break;
             } else if ((kEnabledBranches & (uint64_t{1} << 23)) && !block_builders.empty() && command-- == 0) {
                 // ~BlockBuilder.
@@ -1067,6 +1099,7 @@ FUZZ_TARGET(txgraph)
                 } else {
                     assert(usage > 0);
                 }
+                trace("GetMainMemoryUsage", level_select);
                 break;
             }
             if (command == command_before) break;
@@ -1334,10 +1367,21 @@ FUZZ_TARGET(txgraph)
     for (auto level : {TxGraph::Level::TOP, TxGraph::Level::MAIN}) {
         auto& sim = level == TxGraph::Level::TOP ? sims.back() : sims.front();
         // Compare simple properties of the graph with the simulation.
-        assert(real->IsOversized(level) == sim.IsOversized());
+        const bool real_oversized{real->IsOversized(level)};
+        const bool sim_oversized{sim.IsOversized()};
+        if (trace_steps || real_oversized != sim_oversized) {
+            std::fprintf(stderr,
+                         "[TXGRAPH_CHECK] level=%s real_oversized=%d sim_oversized=%d "
+                         "sim_cache=%s sim_tx=%u sim_removed=%zu staging=%d\n",
+                         level == TxGraph::Level::MAIN ? "MAIN" : "TOP",
+                         int(real_oversized), int(sim_oversized),
+                         cache_state(sim.oversized), unsigned(sim.GetTransactionCount()),
+                         sim.removed.size(), int(sims.size() > 1));
+        }
+        assert(real_oversized == sim_oversized);
         assert(real->GetTransactionCount(level) == sim.GetTransactionCount());
         // If the graph (and the simulation) are not oversized, perform a full comparison.
-        if (!sim.IsOversized()) {
+        if (!sim_oversized) {
             auto todo = sim.graph.Positions();
             // Iterate over all connected components of the resulting (simulated) graph, each of which
             // should correspond to a cluster in the real one.
