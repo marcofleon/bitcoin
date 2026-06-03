@@ -190,6 +190,27 @@ enum class ReadOp { Read, Exists, IteratorSeek };
 using ReadQuery = std::tuple<ReadOp, uint16_t>;
 using Results = std::vector<std::optional<std::string>>;
 
+std::optional<std::string> RunReadQuery(CDBWrapper& db, const ReadQuery& query)
+{
+    const auto& [op, key] = query;
+    std::string v;
+    switch (op) {
+    case ReadOp::Read:
+        if (db.Read(key, v)) return std::move(v);
+        break;
+    case ReadOp::Exists:
+        if (db.Exists(key)) return std::move(v);
+        break;
+    case ReadOp::IteratorSeek: {
+        const std::unique_ptr<CDBIterator> it{db.NewIterator()};
+        it->Seek(key);
+        if (it->Valid() && it->GetValue(v)) return std::move(v);
+        break;
+    }
+    }
+    return std::nullopt;
+}
+
 Results RunReadQueries(CDBWrapper& db, const std::vector<ReadQuery>& queries, FastRandomContext& rng)
 {
     std::vector<size_t> order(queries.size());
@@ -198,24 +219,21 @@ Results RunReadQueries(CDBWrapper& db, const std::vector<ReadQuery>& queries, Fa
 
     Results results(queries.size());
     for (const auto i : order) {
-        const auto& [op, key] = queries[i];
-        std::string v;
-        switch (op) {
-        case ReadOp::Read:
-            if (db.Read(key, v)) results[i] = std::move(v);
-            break;
-        case ReadOp::Exists:
-            if (db.Exists(key)) results[i] = std::move(v);
-            break;
-        case ReadOp::IteratorSeek: {
-            const std::unique_ptr<CDBIterator> it{db.NewIterator()};
-            it->Seek(key);
-            if (it->Valid() && it->GetValue(v)) results[i] = std::move(v);
-            break;
-        }
-        }
+        results[i] = RunReadQuery(db, queries[i]);
     }
     return results;
+}
+
+bool CheckReadQueries(CDBWrapper& db, const std::vector<ReadQuery>& queries, const Results& baseline, FastRandomContext& rng)
+{
+    std::vector<size_t> order(queries.size());
+    std::iota(order.begin(), order.end(), size_t{0});
+    std::shuffle(order.begin(), order.end(), rng);
+
+    for (const auto i : order) {
+        if (RunReadQuery(db, queries[i]) != baseline[i]) return false;
+    }
+    return true;
 }
 
 template <typename DrainWorkFn, typename RunOneFn>
@@ -433,12 +451,12 @@ FUZZ_TARGET(dbwrapper_concurrent_reads, .init = [] { static auto setup{MakeNoLog
 
     // Workers + main thread synchronize on the latch so all reads start together.
     std::latch start_latch{static_cast<ptrdiff_t>(MAX_READ_WORKERS + 1)};
-    std::vector<std::function<Results()>> tasks(MAX_READ_WORKERS);
+    std::vector<std::function<bool()>> tasks(MAX_READ_WORKERS);
     std::generate(tasks.begin(), tasks.end(), [&] {
-        return [&, seed = rng.rand256()]() -> Results {
+        return [&, seed = rng.rand256()]() -> bool {
             FastRandomContext thread_rng{seed};
             start_latch.arrive_and_wait();
-            return RunReadQueries(db, queries, thread_rng);
+            return CheckReadQueries(db, queries, baseline, thread_rng);
         };
     });
     auto futures{*Assert(pool.Submit(std::move(tasks)))};
@@ -448,6 +466,9 @@ FUZZ_TARGET(dbwrapper_concurrent_reads, .init = [] { static auto setup{MakeNoLog
     start_latch.arrive_and_wait();
     det_env.DrainWork();
 
-    for (auto& fut : futures) assert(fut.get() == baseline);
+    for (auto& fut : futures) {
+        const bool matched{fut.get()};
+        assert(matched);
+    }
     det_env.DrainWork();
 }
