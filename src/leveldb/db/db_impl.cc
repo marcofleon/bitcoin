@@ -722,6 +722,19 @@ void DBImpl::BackgroundCompaction() {
     c = versions_->PickCompaction();
   }
 
+  if (c != nullptr) {
+    if (c->level() == 0) {
+      volatile int coverage_marker_compaction_level_0 = c->level();
+      (void)coverage_marker_compaction_level_0;
+    } else if (c->level() == 1) {
+      volatile int coverage_marker_compaction_level_1 = c->level();
+      (void)coverage_marker_compaction_level_1;
+    } else {
+      volatile int coverage_marker_compaction_level_2_plus = c->level();
+      (void)coverage_marker_compaction_level_2_plus;
+    }
+  }
+
   Status status;
   if (c == nullptr) {
     // Nothing to do
