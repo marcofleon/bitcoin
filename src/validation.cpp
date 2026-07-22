@@ -2191,15 +2191,22 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
 {
     AssertLockHeld(::cs_main);
-    bool fClean = true;
 
-    CBlockUndo blockUndo;
-    if (!m_blockman.ReadBlockUndo(blockUndo, *pindex)) {
+    CBlockUndo block_undo;
+    if (!m_blockman.ReadBlockUndo(block_undo, *pindex)) {
         LogError("DisconnectBlock(): failure reading undo data\n");
         return DISCONNECT_FAILED;
     }
 
-    if (blockUndo.vtxundo.size() + 1 != block.vtx.size()) {
+    return DisconnectBlock(block, pindex, view, std::move(block_undo));
+}
+
+DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, CBlockUndo&& block_undo)
+{
+    AssertLockHeld(::cs_main);
+    bool fClean = true;
+
+    if (block_undo.vtxundo.size() + 1 != block.vtx.size()) {
         LogError("DisconnectBlock(): block and undo data inconsistent\n");
         return DISCONNECT_FAILED;
     }
@@ -2237,7 +2244,7 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
 
         // restore inputs
         if (i > 0) { // not coinbases
-            CTxUndo &txundo = blockUndo.vtxundo[i-1];
+            CTxUndo& txundo = block_undo.vtxundo[i - 1];
             if (txundo.vprevout.size() != tx.vin.size()) {
                 LogError("DisconnectBlock(): transaction and undo data inconsistent\n");
                 return DISCONNECT_FAILED;
@@ -2305,10 +2312,12 @@ script_verify_flags GetBlockScriptFlags(const CBlockIndex& block_index, const Ch
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
 bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, CBlockIndex* pindex,
-                               CCoinsViewCache& view, bool fJustCheck)
+                              CCoinsViewCache& view, bool fJustCheck, CBlockUndo* block_undo_out)
 {
     AssertLockHeld(cs_main);
     assert(pindex);
+    assert(fJustCheck || block_undo_out == nullptr);
+    if (block_undo_out) *block_undo_out = {};
 
     uint256 block_hash{block.GetHash()};
     assert(*pindex->phashBlock == block_hash);
@@ -2642,6 +2651,7 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
              Ticks<MillisecondsDouble>(m_chainman.time_verify) / m_chainman.num_blocks_total);
 
     if (fJustCheck) {
+        if (block_undo_out) *block_undo_out = std::move(blockundo);
         return true;
     }
 

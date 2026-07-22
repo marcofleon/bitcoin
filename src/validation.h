@@ -52,6 +52,7 @@
 #include <vector>
 
 class Chainstate;
+class CBlockUndo;
 class CTxMemPool;
 class ChainstateManager;
 struct ChainTxData;
@@ -781,8 +782,13 @@ public:
     // Block (dis)connection on a given view:
     DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
         EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    /** Disconnect using supplied in-memory undo data instead of reading it from disk. */
+    DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, CBlockUndo&& block_undo)
+        EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    /** If block_undo_out is non-null, fJustCheck must be true. On success, the
+     *  generated undo data is moved into block_undo_out. */
     bool ConnectBlock(const CBlock& block, BlockValidationState& state, CBlockIndex* pindex,
-                      CCoinsViewCache& view, bool fJustCheck = false) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+                      CCoinsViewCache& view, bool fJustCheck = false, CBlockUndo* block_undo_out = nullptr) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
     // Apply the effects of a block disconnection on the UTXO set.
     bool DisconnectTip(BlockValidationState& state, DisconnectedBlockTransactions* disconnectpool) EXCLUSIVE_LOCKS_REQUIRED(cs_main, m_mempool->cs);

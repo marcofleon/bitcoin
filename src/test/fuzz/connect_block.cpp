@@ -23,6 +23,7 @@
 #include <test/util/setup_common.h>
 #include <txmempool.h>
 #include <uint256.h>
+#include <undo.h>
 #include <validation.h>
 #include <validationinterface.h>
 
@@ -308,6 +309,10 @@ CTransactionRef ConsumeTransaction(FuzzedDataProvider& fuzzed_data_provider,
                 tx.vin[i] = additional_utxo[target_utxo - g_all_utxo_txins.size()];
             }
 
+            // Preserve a known spending input half the time. Otherwise, allow
+            // the fuzzer to mutate each field independently.
+            if (!fuzzed_data_provider.ConsumeBool()) continue;
+
             // Enable the fuzzer to mutate every CTxIn field after it is taken
             // from existing UTXOs.
             if (fuzzed_data_provider.ConsumeBool()) {
@@ -334,11 +339,12 @@ CTransactionRef ConsumeTransaction(FuzzedDataProvider& fuzzed_data_provider,
     }
 
     // Read outputs.
+    const bool valid_output_values{fuzzed_data_provider.ConsumeBool()};
     int num_outputs = fuzzed_data_provider.ConsumeIntegralInRange<int>(1, 10);
     tx.vout.resize(num_outputs);
     for (int i = 0; i < num_outputs; i++) {
         // Read CAmount to spend.
-        tx.vout[i].nValue = fuzzed_data_provider.ConsumeIntegral<int64_t>();
+        tx.vout[i].nValue = valid_output_values ? (coinbase && i == 0 ? 1 : 0) : fuzzed_data_provider.ConsumeIntegral<int64_t>();
 
         // Read scriptPubKey type into one of the valid types.
         switch (fuzzed_data_provider.ConsumeIntegralInRange<int>(0, 4)) {
@@ -391,24 +397,26 @@ CBlock ConsumeBlock(FuzzedDataProvider& fuzzed_data_provider, const CBlock& prev
     CBlock block;
 
     // First create a valid block header.
-    block.nVersion = g_blocks.back()->nVersion;
+    block.nVersion = prev_block.nVersion;
     block.hashPrevBlock = prev_block.GetHash();
-    block.nTime = g_blocks.back()->nTime + 2;
-    block.nBits = g_blocks.back()->nBits;
+    block.nTime = prev_block.nTime + 2;
+    block.nBits = prev_block.nBits;
 
-    // Give the fuzzer input the ability to mutate block header fields.
-    if (fuzzed_data_provider.ConsumeBool()) {
-        block.nVersion = fuzzed_data_provider.ConsumeIntegral<int32_t>();
-    }
-    if (fuzzed_data_provider.ConsumeBool() && !force_valid_block) {
-        block.hashPrevBlock = ConsumeUInt256(fuzzed_data_provider);
-    }
-
-    if (fuzzed_data_provider.ConsumeBool()) {
-        block.nTime = fuzzed_data_provider.ConsumeIntegral<uint32_t>();
-    }
-    if (fuzzed_data_provider.ConsumeBool()) {
-        block.nBits = fuzzed_data_provider.ConsumeIntegral<uint32_t>();
+    // Give the fuzzer input the ability to mutate block header fields unless
+    // the caller needs a coherent header.
+    if (!force_valid_block) {
+        if (fuzzed_data_provider.ConsumeBool()) {
+            block.nVersion = fuzzed_data_provider.ConsumeIntegral<int32_t>();
+        }
+        if (fuzzed_data_provider.ConsumeBool()) {
+            block.hashPrevBlock = ConsumeUInt256(fuzzed_data_provider);
+        }
+        if (fuzzed_data_provider.ConsumeBool()) {
+            block.nTime = fuzzed_data_provider.ConsumeIntegral<uint32_t>();
+        }
+        if (fuzzed_data_provider.ConsumeBool()) {
+            block.nBits = fuzzed_data_provider.ConsumeIntegral<uint32_t>();
+        }
     }
 
     // Read the coinbase transaction from the input.
@@ -442,7 +450,7 @@ CBlock ConsumeBlock(FuzzedDataProvider& fuzzed_data_provider, const CBlock& prev
         const auto& consensus = g_setup->m_node.chainman->GetConsensus();
         block.nNonce = 0;
         // Do not check against current nBits (as it may be a huge value).
-        while (!CheckProofOfWork(block.GetHash(), g_blocks.back()->nBits, consensus) || g_existing_block_hashes.contains(block.GetHash())) {
+        while (!CheckProofOfWork(block.GetHash(), prev_block.nBits, consensus) || g_existing_block_hashes.contains(block.GetHash())) {
             ++block.nNonce;
             if (block.nNonce == 0) break;
         }
@@ -471,8 +479,26 @@ FUZZ_TARGET(connect_block, .init = initialize_connect_block)
 
     // Read the new block from the input.
     std::vector<CTxIn> additional_utxo;
-    CBlock block = ConsumeBlock(fuzzed_data_provider, *g_blocks.back(), active_tip->nHeight + 1, additional_utxo);
+    CBlock block = ConsumeBlock(fuzzed_data_provider,
+                                *g_blocks.back(),
+                                active_tip->nHeight + 1,
+                                additional_utxo,
+                                /*force_valid_block=*/true);
     CBlockHeader current_header = static_cast<const CBlockHeader&>(block);
+
+    // Track every UTXO entry the block can modify so the round-trip can compare
+    // the resulting view with the unchanged base view.
+    std::set<COutPoint> touched_outpoints;
+    for (const auto& tx : block.vtx) {
+        if (!tx->IsCoinBase()) {
+            for (const auto& input : tx->vin) {
+                touched_outpoints.insert(input.prevout);
+            }
+        }
+        for (uint32_t i = 0; i < tx->vout.size(); ++i) {
+            touched_outpoints.emplace(tx->GetHash(), i);
+        }
+    }
 
     // Compute new CBlockIndex object.
     uint256 current_hash = current_header.GetHash();
@@ -483,11 +509,34 @@ FUZZ_TARGET(connect_block, .init = initialize_connect_block)
 
     // Try to connect the block.
     BlockValidationState state;
-    (void)active_chainstate.ConnectBlock(block,
-                                         state,
-                                         &new_index,
-                                         active_coins,
-                                         /*fJustCheck=*/true);
+    CBlockUndo block_undo;
+    const bool connected{active_chainstate.ConnectBlock(block,
+                                                        state,
+                                                        &new_index,
+                                                        active_coins,
+                                                        /*fJustCheck=*/true,
+                                                        &block_undo)};
+    Assert(connected == state.IsValid());
+    if (!connected) return;
+
+    // fJustCheck does not update the view's best block. Set it before applying
+    // the in-memory undo so DisconnectBlock sees a logically connected view.
+    active_coins.SetBestBlock(current_hash);
+    Assert(active_chainstate.DisconnectBlock(block, &new_index, active_coins, std::move(block_undo)) == DISCONNECT_OK);
+
+    const CCoinsViewCache& coins_tip{active_chainstate.CoinsTip()};
+    Assert(active_coins.GetBestBlock() == coins_tip.GetBestBlock());
+    for (const COutPoint& outpoint : touched_outpoints) {
+        const auto actual{active_coins.PeekCoin(outpoint)};
+        const auto expected{coins_tip.PeekCoin(outpoint)};
+        Assert(actual.has_value() == expected.has_value());
+        if (actual) {
+            Assert(actual->out == expected->out);
+            Assert(actual->nHeight == expected->nHeight);
+            Assert(actual->fCoinBase == expected->fCoinBase);
+        }
+    }
+    active_coins.SanityCheck();
 }
 
 } // namespace
