@@ -2533,7 +2533,7 @@ util::Result<void> CWallet::DisplayAddress(const CTxDestination& dest)
 void CWallet::LoadLockedCoin(const COutPoint& coin, bool persistent)
 {
     AssertLockHeld(cs_wallet);
-    m_locked_coins.emplace(coin, persistent);
+    m_locked_coins.insert_or_assign(coin, persistent);
 }
 
 bool CWallet::LockCoin(const COutPoint& output, bool persist)
