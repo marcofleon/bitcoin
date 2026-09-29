@@ -9,6 +9,7 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     p2p_port,
     assert_equal,
+    assert_raises_rpc_error,
 )
 
 class SetBanTests(BitcoinTestFramework):
@@ -82,6 +83,20 @@ class SetBanTests(BitcoinTestFramework):
         self.nodes[1].setban("127.0.0.1", "add")
         banned = self.nodes[1].listbanned()[0]
         assert_equal(banned['ban_duration'], 1234)
+
+        self.log.info("Test that a relative bantime above UINT32_MAX is rejected")
+        UINT32_MAX = 2**32 - 1
+        assert_raises_rpc_error(-8, "Error: bantime is too large", self.nodes[1].setban, "1.2.3.5", "add", UINT32_MAX + 1)
+        assert_raises_rpc_error(-8, "Error: bantime is too large", self.nodes[1].setban, "1.2.3.5", "add", 2**63 - 1)
+        assert not self.is_banned(self.nodes[1], "1.2.3.5/32")
+        self.nodes[1].setban("1.2.3.5", "add", UINT32_MAX)
+        assert self.is_banned(self.nodes[1], "1.2.3.5/32")
+
+        self.log.info("Test that a too large -bantime is capped at UINT32_MAX")
+        self.restart_node(1, [f"-bantime={2**63 - 1}"])
+        self.nodes[1].setban("1.2.3.6", "add")
+        banned = [b for b in self.nodes[1].listbanned() if b["address"] == "1.2.3.6/32"]
+        assert_equal(banned[0]["ban_duration"], UINT32_MAX)
 
 if __name__ == '__main__':
     SetBanTests(__file__).main()
