@@ -2934,6 +2934,14 @@ bool CWallet::LoadWalletArgs(std::shared_ptr<CWallet> wallet, const WalletContex
     wallet->SetBroadcastTransactions(args.GetBoolArg("-walletbroadcast", DEFAULT_WALLETBROADCAST));
     wallet->SetRebroadcastTransactions(args.GetBoolArg("-walletrebroadcast", DEFAULT_WALLETREBROADCAST));
 
+    wallet->m_wallet_par = args.GetIntArg("-walletpar", DEFAULT_WALLETPAR);
+    if (wallet->m_wallet_par <= 0) {
+        // '0' means 'autodetect'
+        // '<0' means leave that many cores free
+        wallet->m_wallet_par += GetNumCores();
+    }
+    wallet->m_wallet_par = std::clamp(wallet->m_wallet_par, 1, MAX_WALLETPAR);
+
     return true;
 }
 
