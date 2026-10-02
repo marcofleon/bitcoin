@@ -1678,13 +1678,14 @@ BOOST_AUTO_TEST_CASE(bip341_keypath_test_vectors)
             XOnlyPubKey pubkey{key.GetPubKey()};
             BOOST_CHECK_EQUAL(HexStr(pubkey), input["intermediary"]["internalPubkey"].get_str());
 
-            // Sign and verify signature.
+            // Sign twice: fresh auxiliary randomness makes the signatures differ.
             FlatSigningProvider provider;
             provider.keys[key.GetPubKey().GetID()] = key;
             MutableTransactionSignatureCreator creator(tx, txinpos, utxos[txinpos].nValue, &txdata, {.sighash_type = hashtype});
-            std::vector<unsigned char> signature;
+            std::vector<unsigned char> signature, signature2;
             BOOST_CHECK(creator.CreateSchnorrSig(provider, signature, pubkey, nullptr, &merkle_root, SigVersion::TAPROOT));
-            BOOST_CHECK_EQUAL(HexStr(signature), input["expected"]["witness"][0].get_str());
+            BOOST_CHECK(creator.CreateSchnorrSig(provider, signature2, pubkey, nullptr, &merkle_root, SigVersion::TAPROOT));
+            BOOST_CHECK(signature != signature2);
 
             // We can't observe the tweak used inside the signing logic, so verify by recomputing it.
             BOOST_CHECK_EQUAL(HexStr(pubkey.ComputeTapTweakHash(merkle_root.IsNull() ? nullptr : &merkle_root)), input["intermediary"]["tweak"].get_str());
@@ -1696,6 +1697,21 @@ BOOST_AUTO_TEST_CASE(bip341_keypath_test_vectors)
             uint256 sighash;
             BOOST_CHECK(SignatureHashSchnorr(sighash, sed, tx, txinpos, hashtype, SigVersion::TAPROOT, txdata, MissingDataBehavior::FAIL));
             BOOST_CHECK_EQUAL(HexStr(sighash), input["intermediary"]["sigHash"].get_str());
+
+            // Both signatures are valid for the output key and end with the expected hashtype byte.
+            const std::string expected{input["expected"]["witness"][0].get_str()};
+            const auto output_key{pubkey.CreateTapTweak(merkle_root.IsNull() ? nullptr : &merkle_root)};
+            BOOST_REQUIRE(output_key);
+            for (const auto& sig : {signature, signature2}) {
+                BOOST_REQUIRE_GE(sig.size(), 64U);
+                BOOST_CHECK(output_key->first.VerifySchnorr(sighash, std::span{sig}.first(64)));
+                BOOST_CHECK_EQUAL(HexStr(std::span{sig}.subspan(64)), expected.substr(128));
+            }
+
+            // The vectors were generated with all-zero auxiliary randomness.
+            std::vector<unsigned char> zero_aux_sig(64);
+            BOOST_CHECK(key.SignSchnorr(sighash, zero_aux_sig, &merkle_root, uint256{}));
+            BOOST_CHECK_EQUAL(HexStr(zero_aux_sig), expected.substr(0, 128));
 
             // To verify the sigmsg, hash the expected sigmsg, and compare it with the (expected) sighash.
             BOOST_CHECK_EQUAL(HexStr((HashWriter{HASHER_TAPSIGHASH} << std::span<const uint8_t>{ParseHex(input["intermediary"]["sigMsg"].get_str())}).GetSHA256()), input["intermediary"]["sigHash"].get_str());
