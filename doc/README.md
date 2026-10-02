@@ -83,6 +83,7 @@ The Bitcoin repo's [root README](/README.md) contains relevant information on th
 - [Notifications (shell commands)](notifications.md)
 - [Offline Signing Tutorial](offline-signing-tutorial.md)
 - [P2P bad ports definition and list](p2p-bad-ports.md)
+- [Privacy](privacy.md)
 - [PSBT support](psbt.md)
 - [Reduce Memory](reduce-memory.md)
 - [Reduce Traffic](reduce-traffic.md)
