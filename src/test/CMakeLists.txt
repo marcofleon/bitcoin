@@ -27,6 +27,7 @@ add_executable(test_bitcoin
   cfilter_race_tests.cpp
   blockmanager_tests.cpp
   blockpolicyestimator_tests.cpp
+  bench_block_generator_tests.cpp
   bloom_tests.cpp
   bswap_tests.cpp
   btcsignals_tests.cpp
@@ -143,6 +144,7 @@ add_executable(test_bitcoin
   validation_tests.cpp
   validationinterface_tests.cpp
   versionbits_tests.cpp
+  ../bench/block_generator.cpp
 )
 
 include(TargetDataSources)
