@@ -185,6 +185,8 @@ std::vector<std::string> GetNetworkNames(bool append_unroutable = false);
 /** Returns true if the network is IPv4 or IPv6 (as opposed to Tor/I2P/CJDNS). */
 constexpr bool IsClearnet(enum Network net) { return net == NET_IPV4 || net == NET_IPV6; }
 bool SetProxy(enum Network net, const Proxy &addrProxy);
+/** Clear the proxy for `net`, so connections to it are direct again (only for testing). */
+void ResetProxy(enum Network net);
 std::optional<Proxy> GetProxy(enum Network net);
 bool IsProxy(const CNetAddr &addr);
 /**
