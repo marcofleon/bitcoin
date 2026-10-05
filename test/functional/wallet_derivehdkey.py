@@ -34,13 +34,13 @@ class WalletDeriveHDKeyTest(BitcoinTestFramework):
         self.nodes[0].createwallet("basic", blank=True)
         wallet = self.nodes[0].get_wallet_rpc("basic")
         assert_raises_rpc_error(
-            -8,
+            -4,
             "Derivation path requires at least one hardened step",
             wallet.derivehdkey,
             "m",
         )
         assert_raises_rpc_error(
-            -8,
+            -4,
             "Derivation path requires at least one hardened step",
             wallet.derivehdkey,
             "m/87/0/0",
@@ -55,7 +55,7 @@ class WalletDeriveHDKeyTest(BitcoinTestFramework):
                 path,
             )
         assert_raises_rpc_error(
-            -5,
+            -4,
             "No active or unused(KEY) descriptor found",
             wallet.derivehdkey,
             "m/87h",
@@ -68,7 +68,7 @@ class WalletDeriveHDKeyTest(BitcoinTestFramework):
         assert_equal(xpub_info["origin"], f"[{root_fingerprint}/87h]")
         too_deep_path = "m/" + "/".join(["0h"] * 256)
         assert_raises_rpc_error(
-            -8,
+            -4,
             "Unable to derive HD key at the requested path",
             wallet.derivehdkey,
             too_deep_path,
@@ -116,7 +116,7 @@ class WalletDeriveHDKeyTest(BitcoinTestFramework):
         master_xpub_1 = wallet.addhdkey()['xpub']
         master_xpub_2 = wallet.addhdkey()['xpub']
         assert_raises_rpc_error(
-            -5,
+            -4,
             "Unable to determine which HD key to use. Please specify with 'hdkey'",
             wallet.derivehdkey,
             "m/87h",
@@ -180,7 +180,7 @@ class WalletDeriveHDKeyTest(BitcoinTestFramework):
         # its HD key is no longer a candidate.
         assert_true(wallet.importdescriptors([{**request, "active": False}])[0]["success"])
         assert_raises_rpc_error(
-            -5,
+            -4,
             "HD key is not used by an active or unused(KEY) descriptor",
             wallet.derivehdkey,
             "m/87h",
@@ -202,7 +202,7 @@ class WalletDeriveHDKeyTest(BitcoinTestFramework):
         self.nodes[0].createwallet(wallet_name="blank", blank=True)
         wallet = self.nodes[0].get_wallet_rpc("blank")
         assert_raises_rpc_error(
-            -5,
+            -4,
             "No active or unused(KEY) descriptor found",
             wallet.derivehdkey,
             "m/87h",
