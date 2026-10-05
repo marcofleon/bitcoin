@@ -24,7 +24,7 @@
 #include <utility>
 #include <vector>
 
-#include <boost/test/unit_test.hpp>
+#include <test/util/framework.h>
 
 using util::SplitString;
 using util::TrimString;
