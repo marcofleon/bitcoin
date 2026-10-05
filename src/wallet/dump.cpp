@@ -19,6 +19,8 @@
 #include <utility>
 #include <vector>
 
+using util::TrimStringView;
+
 namespace wallet {
 static const std::string DUMP_MAGIC = "BITCOIN_CORE_WALLET_DUMP";
 uint32_t DUMP_VERSION = 1;
@@ -134,7 +136,7 @@ static void WalletToolReleaseWallet(CWallet* wallet)
 
 bool CreateFromDump(const ArgsManager& args, const std::string& name, const fs::path& wallet_path, bilingual_str& error)
 {
-    if (name.empty()) {
+    if (TrimStringView(name).empty()) {
         tfm::format(std::cerr, "Wallet name cannot be empty\n");
         return false;
     }
