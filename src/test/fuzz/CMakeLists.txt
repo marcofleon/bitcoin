@@ -135,6 +135,7 @@ add_executable(fuzz
   tx_pool.cpp
   txgraph.cpp
   txorphan.cpp
+  txreconciliation.cpp
   txrequest.cpp
   utxo_snapshot.cpp
   utxo_total_supply.cpp
