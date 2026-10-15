@@ -1043,7 +1043,7 @@ RPCMethod rescanblockchain()
                 throw JSONRPCError(RPC_MISC_ERROR, "Can't rescan beyond pruned data. Use RPC call getblockchaininfo to determine your pruned height.");
             }
             if (pwallet->chain().hasAssumedValidChain()) {
-                throw JSONRPCError(RPC_MISC_ERROR, "Failed to rescan unavailable blocks likely due to an in-progress assumeutxo background sync. Check logs or getchainstates RPC for assumeutxo background sync progress and try again later.");
+                throw JSONRPCError(RPC_MISC_ERROR, "Failed to rescan unavailable blocks, likely because they are before the assumeutxo snapshot that the chainstate was loaded from. Those blocks are never downloaded; see the getchainstates RPC for the snapshot block.");
             }
             throw JSONRPCError(RPC_MISC_ERROR, "Failed to rescan unavailable blocks, potentially caused by data corruption. If the issue persists you may want to reindex (see -reindex option).");
         }

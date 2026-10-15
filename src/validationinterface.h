@@ -61,7 +61,7 @@ protected:
      * but may not be called on every intermediate tip. If the latter behavior is desired,
      * subscribe to BlockConnected() instead.
      *
-     * Called on a background thread. Only called for the active chainstate.
+     * Called on a background thread.
      */
     virtual void UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) {}
     /**
@@ -128,8 +128,7 @@ protected:
      * Notifies listeners of a block being disconnected
      * Provides the block that was disconnected.
      *
-     * Called on a background thread. Only called for the active chainstate, since
-     * background chainstates should never disconnect blocks.
+     * Called on a background thread.
      */
     virtual void BlockDisconnected(const std::shared_ptr<const CBlock> &block, const CBlockIndex* pindex) {}
     /**

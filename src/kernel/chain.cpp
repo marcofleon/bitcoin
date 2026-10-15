@@ -33,8 +33,6 @@ interfaces::BlockInfo MakeBlockInfo(const CBlockIndex* index, const CBlock* data
 std::ostream& operator<<(std::ostream& os, const ChainstateRole& role) {
     if (!role.validated) {
         os << "assumedvalid";
-    } else if (role.historical) {
-        os << "background";
     } else {
         os << "normal";
     }

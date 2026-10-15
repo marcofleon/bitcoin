@@ -46,10 +46,9 @@ struct ConstevalFormatString;
  * CValidationInterface and ensures blocks are indexed sequentially according
  * to their position in the active chain.
  *
- * In the presence of multiple chainstates (i.e. if a UTXO snapshot is loaded),
- * only the background "IBD" chainstate will be indexed to avoid building the
- * index out of order. When the background chainstate completes validation, the
- * index will be reinitialized and indexing will continue.
+ * Blocks connected to a chainstate based on a UTXO snapshot are not indexed,
+ * since the blocks before the snapshot are never downloaded, so the index
+ * could not be built in order.
  */
 class BaseIndex : public CValidationInterface
 {

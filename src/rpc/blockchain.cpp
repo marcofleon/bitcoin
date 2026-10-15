@@ -1414,15 +1414,6 @@ RPCMethod getblockchaininfo()
                 {RPCResult::Type::NUM_TIME, "mediantime", "the median block time expressed in " + UNIX_EPOCH_TIME},
                 {RPCResult::Type::NUM, "verificationprogress", "estimate of verification progress [0..1]"},
                 {RPCResult::Type::BOOL, "initialblockdownload", "(debug information) estimate of whether this node is in Initial Block Download mode"},
-                {RPCResult::Type::OBJ, "backgroundvalidation", /*optional=*/true, "state info regarding background validation process",
-                {
-                    {RPCResult::Type::NUM, "snapshotheight", "the height of the snapshot block. Background validation verifies the chain from genesis up to this height"},
-                    {RPCResult::Type::NUM, "blocks", "the height of the most-work background fully-validated chain. The genesis block has height 0"},
-                    {RPCResult::Type::STR, "bestblockhash", "the hash of the currently best block validated in the background"},
-                    {RPCResult::Type::NUM_TIME, "mediantime", "the median block time expressed in " + UNIX_EPOCH_TIME},
-                    {RPCResult::Type::NUM, "verificationprogress", "estimate of background verification progress [0..1]"},
-                    {RPCResult::Type::STR_HEX, "chainwork", "total amount of work in background validated chain, in hexadecimal"},
-                }},
                 {RPCResult::Type::STR_HEX, "chainwork", "total amount of work in active chain, in hexadecimal"},
                 {RPCResult::Type::NUM, "size_on_disk", "the estimated size of the block and undo files on disk"},
                 {RPCResult::Type::BOOL, "pruned", "if the blocks are subject to pruning"},
@@ -1463,19 +1454,6 @@ RPCMethod getblockchaininfo()
     obj.pushKV("mediantime", tip.GetMedianTimePast());
     obj.pushKV("verificationprogress", chainman.GuessVerificationProgress(&tip));
     obj.pushKV("initialblockdownload", chainman.IsInitialBlockDownload());
-    auto historical_blocks{chainman.GetHistoricalBlockRange()};
-    if (historical_blocks) {
-        UniValue background_validation(UniValue::VOBJ);
-        const CBlockIndex& btip{*CHECK_NONFATAL(historical_blocks->first)};
-        const CBlockIndex& btarget{*CHECK_NONFATAL(historical_blocks->second)};
-        background_validation.pushKV("snapshotheight", btarget.nHeight);
-        background_validation.pushKV("blocks", btip.nHeight);
-        background_validation.pushKV("bestblockhash", btip.GetBlockHash().GetHex());
-        background_validation.pushKV("mediantime", btip.GetMedianTimePast());
-        background_validation.pushKV("chainwork", btip.nChainWork.GetHex());
-        background_validation.pushKV("verificationprogress", chainman.GetBackgroundVerificationProgress(btip));
-        obj.pushKV("backgroundvalidation", std::move(background_validation));
-    }
     obj.pushKV("chainwork", tip.nChainWork.GetHex());
     obj.pushKV("size_on_disk", chainman.m_blockman.CalculateCurrentUsage());
     obj.pushKV("pruned", chainman.m_blockman.IsPruneMode());
@@ -3517,11 +3495,11 @@ static RPCMethod loadtxoutset()
     return RPCMethod{
         "loadtxoutset",
         "Load the serialized UTXO set from a file.\n"
-        "Once this snapshot is loaded, its contents will be "
-        "deserialized into a second chainstate data structure, which is then used to sync to "
-        "the network's tip. "
-        "Meanwhile, the original chainstate will complete the initial block download process in "
-        "the background, eventually validating up to the block that the snapshot is based upon.\n\n"
+        "Once this snapshot is loaded, its contents will replace the UTXO set of the "
+        "chainstate, which is then used to sync to the network's tip, starting from the "
+        "block that the snapshot is based upon. "
+        "The blocks before that block are never downloaded or validated, so the node will "
+        "not be able to serve them to peers, and indexes can't be used.\n\n"
 
         "The result is a usable bitcoind instance that is current with the network tip in a "
         "matter of minutes rather than hours. UTXO snapshot are typically obtained from "
@@ -3554,6 +3532,10 @@ static RPCMethod loadtxoutset()
     ChainstateManager& chainman = EnsureChainman(node);
     const fs::path path{AbsPathForConfigVal(EnsureArgsman(node), fs::u8path(self.Arg<std::string_view>("path")))};
 
+    if (!node.indexes.empty()) {
+        throw JSONRPCError(RPC_MISC_ERROR, "Unable to load UTXO snapshot: indexes can't be built from a snapshot, because the blocks before the snapshot are never downloaded. Restart with indexes disabled to load a snapshot.");
+    }
+
     FILE* file{fsbridge::fopen(path, "rb")};
     AutoFile afile{file};
     if (afile.IsNull()) {
@@ -3574,8 +3556,8 @@ static RPCMethod loadtxoutset()
         throw JSONRPCError(RPC_INTERNAL_ERROR, strprintf("Unable to load UTXO snapshot: %s. (%s)", util::ErrorString(activation_result).original, path.utf8string()));
     }
 
-    // Because we can't provide historical blocks during tip or background sync.
-    // Update local services to reflect we are a limited peer until we are fully sync.
+    // Because we can't provide the blocks before the snapshot, update local
+    // services to reflect we are a limited peer.
     node.connman->RemoveLocalServices(NODE_NETWORK);
     // Setting the limited state is usually redundant because the node can always
     // provide the last 288 blocks, but it doesn't hurt to set it.
@@ -3603,7 +3585,7 @@ const std::vector<RPCResult> RPCHelpForChainstate{
     {RPCResult::Type::STR_HEX, "snapshot_blockhash", /*optional=*/true, "the base block of the snapshot this chainstate is based on, if any"},
     {RPCResult::Type::NUM, "coins_db_cache_bytes", "size of the coinsdb cache"},
     {RPCResult::Type::NUM, "coins_tip_cache_bytes", "size of the coinstip cache"},
-    {RPCResult::Type::BOOL, "validated", "whether the chainstate is fully validated. True if all blocks in the chainstate were validated, false if the chain is based on a snapshot and the snapshot has not yet been validated."},
+    {RPCResult::Type::BOOL, "validated", "whether the chainstate is fully validated. True if all blocks in the chainstate were validated, false if the chain is based on a snapshot."},
 };
 
 static RPCMethod getchainstates()
@@ -3615,7 +3597,7 @@ return RPCMethod{
         RPCResult{
             RPCResult::Type::OBJ, "", "", {
                 {RPCResult::Type::NUM, "headers", "the number of headers seen so far"},
-                {RPCResult::Type::ARR, "chainstates", "list of the chainstates ordered by work, with the most-work (active) chainstate last", {{RPCResult::Type::OBJ, "", "", RPCHelpForChainstate},}},
+                {RPCResult::Type::ARR, "chainstates", "list containing the active chainstate", {{RPCResult::Type::OBJ, "", "", RPCHelpForChainstate},}},
             }
         },
         RPCExamples{
@@ -3649,15 +3631,12 @@ return RPCMethod{
         if (cs.m_from_snapshot_blockhash) {
             data.pushKV("snapshot_blockhash", cs.m_from_snapshot_blockhash->ToString());
         }
-        data.pushKV("validated", cs.m_assumeutxo == Assumeutxo::VALIDATED);
+        data.pushKV("validated", !cs.m_from_snapshot_blockhash);
         return data;
     };
 
     obj.pushKV("headers", chainman.m_best_header ? chainman.m_best_header->nHeight : -1);
     UniValue obj_chainstates{UniValue::VARR};
-    if (const Chainstate * cs{chainman.HistoricalChainstate()}) {
-        obj_chainstates.push_back(make_chain_data(*cs));
-    }
     obj_chainstates.push_back(make_chain_data(chainman.CurrentChainstate()));
     obj.pushKV("chainstates", std::move(obj_chainstates));
     return obj;

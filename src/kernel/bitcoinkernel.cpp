@@ -1292,8 +1292,9 @@ btck_ChainstateManager* btck_chainstate_manager_create(
             LogError("Failed to verify loaded chain state from your datadir: %s", chainstate_err.original);
             return nullptr;
         }
-        if (auto result = chainman->ActivateBestChains(); !result) {
-            LogError("%s", util::ErrorString(result).original);
+        BlockValidationState state;
+        if (!chainman->ActiveChainstate().ActivateBestChain(state, nullptr)) {
+            LogError("Failed to connect best block (%s)", state.ToString());
             return nullptr;
         }
     } catch (const std::exception& e) {
@@ -1325,11 +1326,10 @@ void btck_chainstate_manager_destroy(btck_ChainstateManager* chainman)
 {
     {
         LOCK(btck_ChainstateManager::get(chainman).m_chainman->GetMutex());
-        for (const auto& chainstate : btck_ChainstateManager::get(chainman).m_chainman->m_chainstates) {
-            if (chainstate->CanFlushToDisk()) {
-                chainstate->ForceFlushStateToDisk();
-                chainstate->ResetCoinsViews();
-            }
+        Chainstate* chainstate{btck_ChainstateManager::get(chainman).m_chainman->m_chainstate.get()};
+        if (chainstate && chainstate->CanFlushToDisk()) {
+            chainstate->ForceFlushStateToDisk();
+            chainstate->ResetCoinsViews();
         }
     }
 

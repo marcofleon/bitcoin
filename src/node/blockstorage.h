@@ -150,15 +150,6 @@ struct PruneLockInfo {
     int height_first{std::numeric_limits<int>::max()};
 };
 
-enum BlockfileType {
-    // Values used as array indexes - do not change carelessly.
-    NORMAL = 0,
-    ASSUMED = 1,
-    NUM_TYPES = 2,
-};
-
-std::ostream& operator<<(std::ostream& os, const BlockfileType& type);
-
 struct BlockfileCursor {
     // The latest blockfile number.
     int file_num{0};
@@ -222,7 +213,7 @@ private:
      * separator fields (STORAGE_HEADER_BYTES).
      */
     [[nodiscard]] FlatFilePos FindNextBlockPos(unsigned int nAddSize, unsigned int nHeight, uint64_t nTime) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
-    [[nodiscard]] bool FlushChainstateBlockFile(int tip_height) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    [[nodiscard]] bool FlushChainstateBlockFile() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
     [[nodiscard]] bool FindUndoPos(BlockValidationState& state, int nFile, FlatFilePos& pos, unsigned int nAddSize) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
     AutoFile OpenUndoFile(const FlatFilePos& pos, bool fReadOnly = false) const;
@@ -255,28 +246,13 @@ private:
         const Chainstate& chain,
         ChainstateManager& chainman);
 
-    //! Since assumedvalid chainstates may be syncing a range of the chain that is very
-    //! far away from the normal/background validation process, we should segment blockfiles
-    //! for assumed chainstates. Otherwise, we might have wildly different height ranges
-    //! mixed into the same block files, which would impair our ability to prune
-    //! effectively.
-    //!
-    //! This data structure maintains separate blockfile number cursors for each
-    //! BlockfileType. The ASSUMED state is initialized, when necessary, in FindNextBlockPos().
-    //!
-    //! The first element is the NORMAL cursor, second is ASSUMED.
-    std::array<std::optional<BlockfileCursor>, BlockfileType::NUM_TYPES>
-        m_blockfile_cursors GUARDED_BY(::cs_main) = {
-            BlockfileCursor{},
-            std::nullopt,
-    };
+    //! Cursor pointing to the blockfile that new blocks are written to, which
+    //! is always the blockfile with the highest number.
+    BlockfileCursor m_blockfile_cursor GUARDED_BY(::cs_main);
     int MaxBlockfileNum() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
     {
         AssertLockHeld(::cs_main);
-        static const BlockfileCursor empty_cursor;
-        const auto& normal = m_blockfile_cursors[BlockfileType::NORMAL].value_or(empty_cursor);
-        const auto& assumed = m_blockfile_cursors[BlockfileType::ASSUMED].value_or(empty_cursor);
-        return std::max(normal.file_num, assumed.file_num);
+        return m_blockfile_cursor.file_num;
     }
 
     /** Global flag to indicate we should check to see if there are
@@ -296,8 +272,6 @@ private:
      * below will be pruned, but callers should avoid assuming any particular buffer size.
      */
     std::unordered_map<std::string, PruneLockInfo> m_prune_locks GUARDED_BY(::cs_main);
-
-    BlockfileType BlockfileTypeForHeight(int height);
 
     const kernel::BlockManagerOpts m_opts;
 
@@ -331,20 +305,6 @@ public:
     std::atomic_bool m_blockfiles_indexed{true};
 
     BlockMap m_block_index GUARDED_BY(cs_main);
-
-    /**
-     * The height of the base block of an assumeutxo snapshot, if one is in use.
-     *
-     * This controls how blockfiles are segmented by chainstate type to avoid
-     * comingling different height regions of the chain when an assumedvalid chainstate
-     * is in use. If heights are drastically different in the same blockfile, pruning
-     * suffers.
-     *
-     * This is set during ActivateSnapshot() or upon LoadBlockIndex() if a snapshot
-     * had been previously loaded. After the snapshot is validated, this is unset to
-     * restore normal LoadBlockIndex behavior.
-     */
-    std::optional<int> m_snapshot_height;
 
     std::vector<CBlockIndex*> GetAllBlockIndices() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 

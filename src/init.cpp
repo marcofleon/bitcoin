@@ -367,10 +367,9 @@ void Shutdown(NodeContext& node)
     // FlushStateToDisk generates a ChainStateFlushed callback, which we should avoid missing
     if (node.chainman) {
         LOCK(cs_main);
-        for (const auto& chainstate : node.chainman->m_chainstates) {
-            if (chainstate->CanFlushToDisk()) {
-                chainstate->ForceFlushStateToDisk();
-            }
+        Chainstate* chainstate{node.chainman->m_chainstate.get()};
+        if (chainstate && chainstate->CanFlushToDisk()) {
+            chainstate->ForceFlushStateToDisk();
         }
     }
 
@@ -397,11 +396,10 @@ void Shutdown(NodeContext& node)
     // Callbacks queued by this final chainstate flush will not run during shutdown
     if (node.chainman) {
         LOCK(cs_main);
-        for (const auto& chainstate : node.chainman->m_chainstates) {
-            if (chainstate->CanFlushToDisk()) {
-                chainstate->ForceFlushStateToDisk();
-                chainstate->ResetCoinsViews();
-            }
+        Chainstate* chainstate{node.chainman->m_chainstate.get()};
+        if (chainstate && chainstate->CanFlushToDisk()) {
+            chainstate->ForceFlushStateToDisk();
+            chainstate->ResetCoinsViews();
         }
     }
 
@@ -1460,26 +1458,6 @@ static ChainstateLoadResult InitAndLoadChainstate(
     ChainstateManager& chainman = *node.chainman;
     if (chainman.m_interrupt) return {ChainstateLoadStatus::INTERRUPTED, {}};
 
-    // This is defined and set here instead of inline in validation.h to avoid a hard
-    // dependency between validation and index/base, since the latter is not in
-    // libbitcoinkernel.
-    chainman.snapshot_download_completed = [&node]() {
-        if (!node.chainman->m_blockman.IsPruneMode()) {
-            LogInfo("[snapshot] re-enabling NODE_NETWORK services");
-            node.connman->AddLocalServices(NODE_NETWORK);
-        }
-        LogInfo("[snapshot] restarting indexes");
-        // Drain the validation interface queue to ensure that the old indexes
-        // don't have any pending work.
-        Assert(node.validation_signals)->SyncWithValidationInterfaceQueue();
-        for (auto* index : node.indexes) {
-            index->Interrupt();
-            index->Stop();
-            if (!(index->Init() && index->StartBackgroundSync())) {
-                LogWarning("[snapshot] Failed to restart index %s on snapshot chain", index->GetName());
-            }
-        }
-    };
     node::ChainstateLoadOptions options;
     options.mempool = Assert(node.mempool.get());
     options.wipe_chainstate_db = do_reindex || do_reindex_chainstate;
@@ -2026,6 +2004,11 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         node.indexes.emplace_back(g_coin_stats_index.get());
     }
 
+    if (!node.indexes.empty() && WITH_LOCK(chainman.GetMutex(), return chainman.CurrentChainstate().m_from_snapshot_blockhash.has_value())) {
+        return InitError(_("Indexes cannot be used with a chainstate loaded from an assumeutxo snapshot, because the blocks before the snapshot are never downloaded. "
+                           "Disable the indexes, or restart with -reindex-chainstate to sync from the genesis block instead."));
+    }
+
     // Init indexes
     for (auto index : node.indexes) if (!index->Init()) return false;
 
@@ -2043,18 +2026,16 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     if (chainman.m_blockman.IsPruneMode()) {
         if (chainman.m_blockman.m_blockfiles_indexed) {
             LOCK(cs_main);
-            for (const auto& chainstate : chainman.m_chainstates) {
-                uiInterface.InitMessage(_("Pruning blockstore…"));
-                chainstate->PruneAndFlush();
-            }
+            uiInterface.InitMessage(_("Pruning blockstore…"));
+            chainman.CurrentChainstate().PruneAndFlush();
         }
     } else {
         // Prior to setting NODE_NETWORK, check if we can provide historical blocks.
-        if (!WITH_LOCK(chainman.GetMutex(), return chainman.HistoricalChainstate())) {
+        if (!WITH_LOCK(chainman.GetMutex(), return chainman.CurrentChainstate().m_from_snapshot_blockhash.has_value())) {
             LogInfo("Setting NODE_NETWORK in non-prune mode");
             g_local_services = ServiceFlags(g_local_services | NODE_NETWORK);
         } else {
-            LogInfo("Running node in NODE_NETWORK_LIMITED mode until snapshot background sync completes");
+            LogInfo("Running node in NODE_NETWORK_LIMITED mode because the blocks before the assumeutxo snapshot are not available");
         }
     }
 
@@ -2460,7 +2441,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 bool StartIndexBackgroundSync(NodeContext& node)
 {
     ChainstateManager& chainman = *Assert(node.chainman);
-    const Chainstate& chainstate = WITH_LOCK(::cs_main, return chainman.ValidatedChainstate());
+    const Chainstate& chainstate = chainman.ActiveChainstate();
     const CChain& index_chain = chainstate.m_chain;
     const int current_height = WITH_LOCK(::cs_main, return index_chain.Height());
 

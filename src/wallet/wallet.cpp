@@ -1551,9 +1551,6 @@ void CWallet::transactionRemovedFromMempool(const CTransactionRef& tx, MemPoolRe
 
 void CWallet::blockConnected(const ChainstateRole& role, const interfaces::BlockInfo& block)
 {
-    if (role.historical) {
-        return;
-    }
     assert(block.data);
     LOCK(cs_wallet);
 
@@ -3118,19 +3115,18 @@ bool CWallet::AttachChain(const std::shared_ptr<CWallet>& walletInstance, interf
                 // This might happen if a user uses an old wallet within a pruned node
                 // or if they ran -disablewallet for a longer time, then decided to re-enable
                 // Exit early and print an error.
-                // It also may happen if an assumed-valid chain is in use and therefore not
-                // all block data is available.
+                // It also may happen if an assumed-valid chain is in use and therefore
+                // the blocks before the snapshot are not available.
                 // If a block is pruned after this check, we will load the wallet,
                 // but fail the rescan with a generic error.
 
                 error = chain.havePruned() ?
                      _("Prune: last wallet synchronisation goes beyond pruned data. You need to -reindex (download the whole blockchain again in case of a pruned node)") :
                      strprintf(_(
-                        "Error loading wallet. Wallet requires blocks to be downloaded, "
-                        "and software does not currently support loading wallets while "
-                        "blocks are being downloaded out of order when using assumeutxo "
-                        "snapshots. Wallet should be able to load successfully after "
-                        "node sync reaches height %s"), block_height);
+                        "Error loading wallet. Wallet requires blocks before height %s to be "
+                        "rescanned, which are not available because the chainstate was loaded "
+                        "from an assumeutxo snapshot. You need to -reindex-chainstate to sync "
+                        "from the genesis block instead."), block_height);
                 return false;
             }
         }

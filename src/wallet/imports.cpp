@@ -316,9 +316,9 @@ std::vector<ImportResult> ProcessDescriptorsImport(CWallet& wallet,
                             "(see bitcoind log for details) and could be dealt with by downloading and "
                             "rescanning the relevant blocks (see -reindex option and rescanblockchain RPC).");
                     } else if (wallet.chain().hasAssumedValidChain()) {
-                        error_msg += strprintf(" This error is likely caused by an in-progress assumeutxo "
-                            "background sync. Check logs or getchainstates RPC for assumeutxo background "
-                            "sync progress and try again later.");
+                        error_msg += strprintf(" This error is likely caused by the block being before the "
+                            "assumeutxo snapshot the chainstate was loaded from, as these blocks are never "
+                            "downloaded (see getchainstates RPC for the snapshot block).");
                     } else {
                         error_msg += strprintf(" This error could potentially caused by data corruption. If "
                             "the issue persists you may want to reindex (see -reindex option).");

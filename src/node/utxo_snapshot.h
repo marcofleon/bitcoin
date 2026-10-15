@@ -27,8 +27,6 @@
 // UTXO set snapshot magic bytes
 inline constexpr std::array<uint8_t, 5> SNAPSHOT_MAGIC_BYTES = {'u', 't', 'x', 'o', 0xff};
 
-class Chainstate;
-
 namespace node {
 //! Metadata describing a serialized version of a UTXO set from which an
 //! assumeutxo Chainstate can be constructed.
@@ -113,9 +111,9 @@ public:
 inline const fs::path SNAPSHOT_BLOCKHASH_FILENAME{"base_blockhash"};
 
 //! Write out the blockhash of the snapshot base block that was used to construct
-//! this chainstate. This value is read in during subsequent initializations and
-//! used to reconstruct snapshot-based chainstates.
-bool WriteSnapshotBaseBlockhash(Chainstate& snapshot_chainstate)
+//! the UTXO set in the chainstate dir. This value is read in during subsequent
+//! initializations and used to reconstruct snapshot-based chainstates.
+bool WriteSnapshotBaseBlockhash(const fs::path& chaindir, const uint256& base_blockhash)
     EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
 //! Read the blockhash of the snapshot base block that was used to construct the

@@ -179,9 +179,6 @@ void CZMQNotificationInterface::TransactionRemovedFromMempool(const CTransaction
 
 void CZMQNotificationInterface::BlockConnected(const ChainstateRole& role, const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindexConnected)
 {
-    if (role.historical) {
-        return;
-    }
     for (const CTransactionRef& ptx : pblock->vtx) {
         const CTransaction& tx = *ptx;
         TryForEachAndRemoveFailed(notifiers, [&tx](CZMQAbstractNotifier* notifier) {

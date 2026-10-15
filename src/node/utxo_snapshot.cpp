@@ -10,23 +10,18 @@
 #include <uint256.h>
 #include <util/fs.h>
 #include <util/log.h>
-#include <validation.h>
 
-#include <cassert>
 #include <cstdio>
 #include <optional>
 #include <string>
 
 namespace node {
 
-bool WriteSnapshotBaseBlockhash(Chainstate& snapshot_chainstate)
+bool WriteSnapshotBaseBlockhash(const fs::path& chaindir, const uint256& base_blockhash)
 {
     AssertLockHeld(::cs_main);
-    assert(snapshot_chainstate.m_from_snapshot_blockhash);
 
-    const std::optional<fs::path> chaindir = snapshot_chainstate.StoragePath();
-    assert(chaindir); // Sanity check that chainstate isn't in-memory.
-    const fs::path write_to = *chaindir / node::SNAPSHOT_BLOCKHASH_FILENAME;
+    const fs::path write_to = chaindir / node::SNAPSHOT_BLOCKHASH_FILENAME;
 
     FILE* file{fsbridge::fopen(write_to, "wb")};
     AutoFile afile{file};
@@ -35,7 +30,7 @@ bool WriteSnapshotBaseBlockhash(Chainstate& snapshot_chainstate)
                   fs::PathToString(write_to));
         return false;
     }
-    afile << *snapshot_chainstate.m_from_snapshot_blockhash;
+    afile << base_blockhash;
 
     if (afile.fclose() != 0) {
         LogError("[snapshot] failed to close base blockhash file %s after writing",
