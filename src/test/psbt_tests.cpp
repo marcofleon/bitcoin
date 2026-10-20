@@ -12,6 +12,7 @@
 #include <script/script.h>
 #include <script/signingprovider.h>
 #include <script/solver.h>
+#include <test/util/common.h>
 #include <test/util/setup_common.h>
 #include <uint256.h>
 #include <util/strencodings.h>
@@ -283,7 +284,7 @@ BOOST_AUTO_TEST_CASE(update_psbt_output_redeem_script)
     for (bool has_input : {false, true}) {
         PSBTOutputTest test{"sh(wpkh(<KEY>))"};
         auto out{test.UpdateOutput(has_input)};
-        BOOST_CHECK(out.redeem_script == GetScriptForDestination(WitnessV0KeyHash{test.pubkey}));
+        BOOST_CHECK_EQUAL(out.redeem_script, GetScriptForDestination(WitnessV0KeyHash{test.pubkey}));
         BOOST_CHECK(out.hd_keypaths.contains(test.pubkey));
     }
 }
@@ -293,7 +294,7 @@ BOOST_AUTO_TEST_CASE(update_psbt_output_witness_script)
     for (bool has_input : {false, true}) {
         PSBTOutputTest test{"wsh(pk(<KEY>))"};
         auto out{test.UpdateOutput(has_input)};
-        BOOST_CHECK(out.witness_script == GetScriptForRawPubKey(test.pubkey));
+        BOOST_CHECK_EQUAL(out.witness_script, GetScriptForRawPubKey(test.pubkey));
         BOOST_CHECK(out.hd_keypaths.contains(test.pubkey));
     }
 }
@@ -303,7 +304,7 @@ BOOST_AUTO_TEST_CASE(update_psbt_output_miniscript_timelock)
     for (bool has_input : {false, true}) {
         PSBTOutputTest test{"wsh(and_v(v:pk(<KEY>),older(144)))"};
         auto out{test.UpdateOutput(has_input)};
-        BOOST_CHECK(GetScriptForDestination(WitnessV0ScriptHash{out.witness_script}) == test.script_pubkey);
+        BOOST_CHECK_EQUAL(GetScriptForDestination(WitnessV0ScriptHash{out.witness_script}), test.script_pubkey);
         BOOST_CHECK(out.hd_keypaths.contains(test.pubkey));
     }
 }
