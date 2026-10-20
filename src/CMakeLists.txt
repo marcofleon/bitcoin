@@ -179,7 +179,7 @@ if(ENABLE_WALLET)
       bitcoin_common
       bitcoin_util
     )
-    install_binary_component(bitcoin-wallet HAS_MANPAGE)
+    install_binary_component(bitcoin-wallet HAS_MANPAGE HAS_FISH_COMPLETION)
   endif()
 endif()
 
@@ -315,7 +315,7 @@ if(BUILD_BITCOIN_BIN)
   )
   add_windows_application_manifest(bitcoin)
   target_link_libraries(bitcoin core_interface bitcoin_common bitcoin_util)
-  install_binary_component(bitcoin HAS_MANPAGE)
+  install_binary_component(bitcoin HAS_MANPAGE HAS_BASH_COMPLETION)
 endif()
 
 # Bitcoin Core bitcoind.
@@ -331,7 +331,7 @@ if(BUILD_DAEMON)
     bitcoin_node
     $<TARGET_NAME_IF_EXISTS:bitcoin_wallet>
   )
-  install_binary_component(bitcoind HAS_MANPAGE)
+  install_binary_component(bitcoind HAS_MANPAGE HAS_BASH_COMPLETION HAS_FISH_COMPLETION)
 endif()
 if(ENABLE_IPC AND BUILD_DAEMON)
   add_executable(bitcoin-node
@@ -374,7 +374,7 @@ if(BUILD_CLI)
     bitcoin_ipc
     bitcoin_util
   )
-  install_binary_component(bitcoin-cli HAS_MANPAGE)
+  install_binary_component(bitcoin-cli HAS_MANPAGE HAS_BASH_COMPLETION HAS_FISH_COMPLETION)
 endif()
 
 
@@ -390,7 +390,7 @@ if(BUILD_TX)
     bitcoin_util
     univalue
   )
-  install_binary_component(bitcoin-tx HAS_MANPAGE)
+  install_binary_component(bitcoin-tx HAS_MANPAGE HAS_BASH_COMPLETION HAS_FISH_COMPLETION)
 endif()
 
 
@@ -406,7 +406,7 @@ if(BUILD_UTIL)
     bitcoin_util
     univalue
   )
-  install_binary_component(bitcoin-util HAS_MANPAGE)
+  install_binary_component(bitcoin-util HAS_MANPAGE HAS_FISH_COMPLETION)
 endif()
 
 
