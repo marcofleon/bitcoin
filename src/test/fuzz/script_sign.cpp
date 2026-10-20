@@ -14,6 +14,7 @@
 #include <test/fuzz/FuzzedDataProvider.h>
 #include <test/fuzz/fuzz.h>
 #include <test/fuzz/util.h>
+#include <test/util/random.h>
 #include <test/util/transaction_utils.h>
 #include <util/chaintype.h>
 #include <util/translation.h>
@@ -34,6 +35,7 @@ void initialize_script_sign()
 
 FUZZ_TARGET(script_sign, .init = initialize_script_sign)
 {
+    SeedRandomStateForTest(SeedRand::ZEROS);
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
     const std::vector<uint8_t> key = ConsumeRandomLengthByteVector(fuzzed_data_provider, 128);
 
