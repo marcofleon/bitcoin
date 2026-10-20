@@ -83,6 +83,11 @@ void KernelNotifications::progress(const bilingual_str& title, int progress_perc
     uiInterface.ShowProgress(title.translated, progress_percent, resume_possible);
 }
 
+void KernelNotifications::snapshotLoadProgress(double progress)
+{
+    uiInterface.SnapshotLoadProgress(progress);
+}
+
 void KernelNotifications::warningSet(kernel::Warning id, const bilingual_str& message)
 {
     if (m_warnings.Set(id, message)) {
